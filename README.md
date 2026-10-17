@@ -2,7 +2,7 @@
 
 PWA local-first e offline-first per radioamatori e SWL, pensata per tablet Android e utilizzabile da browser desktop: logbook HAM e SWL, explorer di frequenze, segnali, satelliti, APRS e ripetitori, calcolatori RF, propagazione, QSL, risorse e backup.
 
-> **Stato**: Milestone **M0** chiusa il 2026-10-17. Milestone **M1 — Fondamenta PWA e dashboard**: sviluppo completato (Blocchi A–D), CI verde su GitHub e `main` protetto da ruleset; **non ancora chiusa**: mancano il primo deploy su Cloudflare Pages e il collaudo su tablet Android ([ROADMAP § 6](docs/roadmap/ROADMAP.md#6-checklist-di-completamento-m1)). I 13 moduli funzionali sono navigabili ma mostrano la pagina "In sviluppo" con la milestone prevista.
+> **Stato**: versione **0.1.0**. Milestone **M0** chiusa e **M1 — Fondamenta PWA e dashboard** approvata per la chiusura il 2026-10-17: PWA installabile e offline, dashboard, navigazione dei 14 moduli, CI su GitHub Actions, deploy Cloudflare Pages verificato sulla preview, `main` protetto. Rilascio in produzione e tag `v0.1.0` in corso ([ROADMAP § 6](docs/roadmap/ROADMAP.md#6-checklist-di-completamento-m1)). I 13 moduli funzionali mostrano la pagina "In sviluppo" con la milestone prevista; la prossima è M2 (persistenza IndexedDB).
 
 ## Documentazione
 
