@@ -1,0 +1,12 @@
+# Build output and reports
+dist/
+dist-ssr/
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.wrangler/
+
+# Generated or third-party files
+package-lock.json
+docs/references/

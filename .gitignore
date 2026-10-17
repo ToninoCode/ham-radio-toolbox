@@ -7,10 +7,19 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies and build output
 node_modules
 dist
 dist-ssr
-*.local
+*.tsbuildinfo
+
+# Tooling caches and reports
+.eslintcache
+coverage/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
 
 # Editor directories and files
 .vscode/*
@@ -23,15 +32,18 @@ dist-ssr
 *.sln
 *.sw?
 
-# Local data and private references
-docs/references/
+# Local configuration and secrets
 *.local
 .env
 .env.*
 !.env.example
 
+# Local data and private references
+docs/references/
+
 # Generated exports
 backups/
 exports/
-playwright-report/
-test-results/
+
+# Cloudflare wrangler local state
+.wrangler/

@@ -2,7 +2,7 @@
 
 | Campo                | Valore                                                                                                                                                                              |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stato                | M0 — Approvato dal maintainer (2026-10-17)                                                                                                                                          |
+| Stato                | M0 chiusa (2026-10-17) · **M1 approvata per la chiusura (2026-10-17), versione 0.1.0**: merge su `main`, deploy di produzione e tag `v0.1.0` da eseguire (§ 6.3)                    |
 | Ultimo aggiornamento | 2026-10-17                                                                                                                                                                          |
 | Capacità             | 10–12 h/settimana (nominale 11 h)                                                                                                                                                   |
 | Stima M1–M13         | 171 h di base + 40 h di riserva (23,4 %) = **211 h** ≈ **19–23 settimane** dopo M0 (nominale: 21 settimane in totale, M0 inclusa)                                                   |
@@ -114,9 +114,10 @@ Lavoro di un solo sviluppatore con milestone in sequenza: la durata totale è la
 
 ### 2.3 Consuntivo
 
-| Milestone | Stima (h) | Effettivo (h)       | Riserva usata (h) | Riserva residua (h) | Note                        |
-| --------- | --------- | ------------------- | ----------------- | ------------------- | --------------------------- |
-| M0        | 12        | n/d (non tracciato) | —                 | 40                  | Ore effettive non misurate. |
+| Milestone | Stima (h)                   | Effettivo (h)       | Riserva usata (h)   | Riserva residua (h) | Note                                                                                 |
+| --------- | --------------------------- | ------------------- | ------------------- | ------------------- | ------------------------------------------------------------------------------------ |
+| M0        | 12                          | n/d (non tracciato) | —                   | 40                  | Ore effettive non misurate.                                                          |
+| M1        | 13 (+1 residui BL-M1-14…16) | n/d (non tracciato) | n/d (non tracciata) | 40 (nominale)       | Ore effettive non comunicate: consuntivo da completare se il maintainer le registra. |
 
 ---
 
@@ -133,7 +134,7 @@ Ogni milestone richiede (PROJECT §10): perimetro documentato, task, criteri di 
   - `docs/adr/0001…0012`, README, aggiornamento di `CLAUDE.md`.
 - **Criteri di accettazione**: vedi [§ 5 Checklist M0](#5-checklist-di-completamento-m0).
 
-### M1 — Fondamenta PWA e dashboard
+### M1 — Fondamenta PWA e dashboard ✅ (approvata per la chiusura 2026-10-17, v0.1.0)
 
 - **Dipende da**: M0 approvata e committata.
 - **Obiettivo**: app shell installabile e offline, struttura cartelle, qualità, CI e deploy su Cloudflare Pages.
@@ -322,21 +323,26 @@ ID `BL-<milestone>-<NN>`. Stima in ore (h). Priorità come nei requisiti. Stato:
 
 ### M1 (13 h)
 
-| ID       | Task                                                                                                                                                                                   | Req.               | Pri. | h   |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ---- | --- |
-| BL-M1-01 | Pulizia `.gitignore` (riga `*.local` duplicata), protezione branch `main`                                                                                                              | D-09, D-10         | M    | 0,5 |
-| BL-M1-02 | Rimozione scaffold Vite; `index.html` con `lang="it"`, titolo, meta PWA                                                                                                                | D-06, D-07         | M    | 0,5 |
-| BL-M1-03 | `tsconfig`: `noUncheckedIndexedAccess`, alias `@/`                                                                                                                                     | D-18               | M    | 0,5 |
-| BL-M1-04 | ESLint flat config + Prettier + regole di layer + script npm                                                                                                                           | D-02, D-04         | M    | 1,5 |
-| BL-M1-05 | Vitest (jsdom) + Playwright config, test di esempio reali (non placeholder)                                                                                                            | —                  | M    | 1   |
-| BL-M1-06 | Tailwind v4 + design token chiaro/scuro                                                                                                                                                | FR-DSH-06          | M    | 1   |
-| BL-M1-07 | Catalogo i18n tipizzato interno (ADR-0008, accettato)                                                                                                                                  | NFR-I18N-01        | M    | 1   |
-| BL-M1-08 | Router `createWebHistory` con route lazy per i 14 moduli e vista "In sviluppo"                                                                                                         | FR-GEN-07          | M    | 1   |
-| BL-M1-09 | Layout responsive, navigazione, indicatore online/offline                                                                                                                              | FR-DSH-04          | M    | 1,5 |
-| BL-M1-10 | Dashboard: griglia moduli, workspace HAM/SWL, orologio UTC, preferiti (in memoria/`settings` da M2)                                                                                    | FR-DSH-01/02/03/07 | M    | 1,5 |
-| BL-M1-11 | `vite-plugin-pwa`: manifest, icone, precache, prompt di aggiornamento                                                                                                                  | FR-DSH-08          | M    | 1,5 |
-| BL-M1-12 | GitHub Actions: typecheck, lint, test, build, E2E                                                                                                                                      | NFR-MNT-04         | M    | 1   |
-| BL-M1-13 | Cloudflare Pages (ADR-0011): progetto Direct Upload, token con permesso minimo, secret GitHub, `public/_headers`, controllo assenza `404.html`, primo deploy e verifica route profonde | CON-13             | M    | 0,5 |
+| ID       | Task                                                                                                                                                                                   | Req.               | Pri. | h    | Stato                                                                                                                               |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ---- | ---- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| BL-M1-01 | Pulizia `.gitignore` (riga `*.local` duplicata), protezione branch `main`                                                                                                              | D-09, D-10         | M    | 0,5  | ☑ `.gitignore` (Blocco A); protezione `main` attiva (BL-M1-14)                                                                      |
+| BL-M1-02 | Rimozione scaffold Vite; `index.html` con `lang="it"`, titolo, meta PWA                                                                                                                | D-06, D-07         | M    | 0,5  | ☑ (icone e manifest in BL-M1-11)                                                                                                    |
+| BL-M1-03 | `tsconfig`: `noUncheckedIndexedAccess`, alias `@/`                                                                                                                                     | D-18               | M    | 0,5  | ☑                                                                                                                                   |
+| BL-M1-04 | ESLint flat config + Prettier + regole di layer + script npm                                                                                                                           | D-02, D-04         | M    | 1,5  | ☑                                                                                                                                   |
+| BL-M1-05 | Vitest (jsdom) + Playwright config, test di esempio reali (non placeholder)                                                                                                            | —                  | M    | 1    | ☑                                                                                                                                   |
+| BL-M1-06 | Tailwind v4 + design token chiaro/scuro                                                                                                                                                | FR-DSH-06          | M    | 1    | ☑                                                                                                                                   |
+| BL-M1-07 | Catalogo i18n tipizzato interno (ADR-0008, accettato)                                                                                                                                  | NFR-I18N-01        | M    | 1    | ☑ (lint `vue/no-bare-strings-in-template`)                                                                                          |
+| BL-M1-08 | Router `createWebHistory` con route lazy per i 14 moduli e vista "In sviluppo"                                                                                                         | FR-GEN-07          | M    | 1    | ☑                                                                                                                                   |
+| BL-M1-09 | Layout responsive, navigazione, indicatore online/offline                                                                                                                              | FR-DSH-04          | M    | 1,5  | ☑                                                                                                                                   |
+| BL-M1-10 | Dashboard: griglia moduli, workspace HAM/SWL, orologio UTC, preferiti (in memoria/`settings` da M2)                                                                                    | FR-DSH-01/02/03/07 | M    | 1,5  | ☑ (preferiti in memoria; persistenza in M2)                                                                                         |
+| BL-M1-11 | `vite-plugin-pwa`: manifest, icone, precache, prompt di aggiornamento                                                                                                                  | FR-DSH-08          | M    | 1,5  | ☑ test automatici verdi in CI e sulla preview; collaudo su tablet fisico **dichiarato superato dal maintainer** (dettagli in § 6.1) |
+| BL-M1-12 | GitHub Actions: typecheck, lint, test, build, E2E                                                                                                                                      | NFR-MNT-04         | M    | 1    | ☑ CI eseguita su GitHub: PR #1, run `39061024680` (2 tentativi), `quality` ed `e2e` verdi su `3185158`                              |
+| BL-M1-13 | Cloudflare Pages (ADR-0011): progetto Direct Upload, token con permesso minimo, secret GitHub, `public/_headers`, controllo assenza `404.html`, primo deploy e verifica route profonde | CON-13             | M    | 0,5  | ☑ deploy preview da GitHub Actions verificato (§ 6.2); produzione al merge su `main` (§ 6.3)                                        |
+| BL-M1-14 | Protezione del branch `main` su GitHub (PR obbligatoria, controlli CI richiesti); residuo di BL-M1-01, da completare nel Blocco D                                                      | D-10               | M    | 0,25 | ☑ ruleset `main protection` (id 25316364) attivo dal 2026-10-17, regole verificate via API; lista dei bypass da confermare nella UI |
+| BL-M1-15 | Allineamento documentale: `ARCHITECTURE.md` § 12 indica `npm run format -- --check`, lo script reale è `npm run format:check`                                                          | NFR-MNT-04         | M    | 0,25 | ☑                                                                                                                                   |
+| BL-M1-16 | Regole ESLint contro gli import **relativi** fra moduli (`../../altro-modulo/...`), oggi non intercettati, con test negativi dedicati                                                  | NFR-MNT-02         | M    | 0,5  | ☑ regola locale `hrt/no-cross-boundary-relative-import` + controllo stringhe UI negli script, con test negativi                     |
+
+BL-M1-14…16 sono residui del Blocco A, registrati all'approvazione del Blocco B (2026-10-17). L'ora aggiuntiva grava sulla riserva di M1 (2 h).
 
 ### M2 (16 h)
 
@@ -432,3 +438,55 @@ Totali per milestone (base): M4 12 · M5 18 · M6 10 · M7 6 · M8 18 · M9 10 �
 | 14  | Nessuna funzionalità di milestone successive implementata                                   | ✅ nessun file fuori da `docs/`, `README.md` e `CLAUDE.md` modificato rispetto a `08f2d66`                                                                       |
 | 15  | Approvazione del maintainer                                                                 | ✅ 2026-10-17 (BL-M0-08)                                                                                                                                         |
 | 16  | Commit di chiusura                                                                          | ☐ da eseguire (BL-M0-10)                                                                                                                                         |
+
+---
+
+## 6. Checklist di completamento M1
+
+Stato al 2026-10-17. M1 è **approvata per la chiusura** dal maintainer. Restano le operazioni di rilascio di § 6.3, senza le quali la versione 0.1.0 non è in produzione. Gli esiti riportano solo verifiche effettivamente eseguite o dichiarate dal maintainer, ed è indicato quale dei due casi.
+
+| #   | Criterio (§ 3, M1)                                                                                        | Esito                                                                                                                                                   |
+| --- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `npm run dev\|build\|preview\|typecheck\|lint\|format\|test\|test:e2e` funzionanti                        | ✅ in locale e in CI (§ 6.2)                                                                                                                            |
+| 2   | PWA installabile; manifest e icone validi                                                                 | ✅ Chrome non riporta errori di manifest né di installabilità (CDP), in CI e sulla preview reale. Lighthouse non eseguito: sostituito dal controllo CDP |
+| 3   | Offline (Playwright `setOffline`): app e route dei 14 moduli navigabili                                   | ✅ `tests/e2e/pwa.spec.ts`, desktop e tablet emulato, in CI                                                                                             |
+| 4   | Toast di aggiornamento funzionante con due build                                                          | ✅ automatico con due build reali (`tests/e2e/pwa-update.spec.ts`) in CI                                                                                |
+| 5   | Regole ESLint di layer attive, verificate da test negativi; nessuna stringa UI hardcoded                  | ✅ `tests/integration/eslint-layer-rules.spec.ts`, lint in CI                                                                                           |
+| 6   | Deploy su Cloudflare Pages da GitHub Actions: route profonda 200, header di `_headers`, nessun `404.html` | ✅ sulla **preview** (deploy da GitHub Actions, smoke test 7/7, § 6.2). Produzione: alla prima esecuzione su `main` (§ 6.3)                             |
+| 7   | Checklist manuale su tablet Android: installazione, avvio offline                                         | ✅ **dichiarato dal maintainer** il 2026-10-17; scheda di § 6.1 senza dati di dettaglio                                                                 |
+| 8   | `typecheck`, `lint`, `test` e `build` verdi in CI                                                         | ✅                                                                                                                                                      |
+
+### 6.1 Collaudo su tablet Android
+
+Procedura: [ARCHITECTURE § 8.2](../architecture/ARCHITECTURE.md#82-collaudo-manuale-su-tablet-android). Esito complessivo **superato, su dichiarazione del maintainer** (2026-10-17). I dati di dettaglio non sono stati comunicati e non vengono ricostruiti: completarli, se disponibili, al primo aggiornamento della roadmap.
+
+| Campo                       | Valore                |
+| --------------------------- | --------------------- |
+| Data                        | 2026-10-17            |
+| Tablet (modello)            | non fornito           |
+| Android / Chrome (versioni) | non fornito           |
+| URL collaudato              | non fornito           |
+| `build-id`                  | non fornito           |
+| Esecutore                   | maintainer            |
+| Esito                       | superato (dichiarato) |
+
+### 6.2 Evidenze verificate (2026-10-17)
+
+| Area                         | Evidenza                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| CI GitHub Actions            | PR #1. Run `39061024680` su `3185158` (2 tentativi) e run `39063898122` su `187c3ac` (4 tentativi): `quality` ed `e2e` verdi in tutti i tentativi                                                                                                                                                                                          |
+| Deploy preview               | Run `39063898122`, tentativo 4: job `deploy` verde (20:21–20:22 UTC), deployment GitHub `7145258884` (ambiente `preview`), URL `https://3b30b77a.ham-radio-toolbox.pages.dev`, alias `https://feature-m1-pwa-foundation.ham-radio-toolbox.pages.dev`; artefatto `dist` della stessa esecuzione                                             |
+| HTTPS e sicurezza            | `npm run test:deployment` ripetuto in locale su entrambi gli URL della preview: **7/7**. Verificati CSP (nessuna violazione, niente `unsafe-*`), `nosniff`, `X-Frame-Options`, `Referrer-Policy`, `COOP`, `Permissions-Policy`, cache (`sw.js` `no-cache`, asset `immutable`). Le preview hanno anche `x-robots-tag: noindex` (Cloudflare) |
+| Service worker, routing, PWA | Sulla preview: route profonde 200 dal fallback SPA, `/404.html` assente, SW registrato sotto CSP, nessun errore di manifest o di installabilità (CDP), `build-id` = `9ad12a9`, cioè il merge commit di prova della PR (`187c3ac` su `df0bd37`), come previsto per gli eventi `pull_request`                                                |
+| Protezione di `main`         | Ruleset `main protection` (id 25316364) attivo, regole effettive lette via API: `deletion`, `non_fast_forward`, `pull_request`, `required_status_checks` (`quality`, `e2e`, branch aggiornato). Lista dei bypass non leggibile senza autenticazione                                                                                        |
+| Produzione                   | Non ancora presente: `https://ham-radio-toolbox.pages.dev` risponde 404, nessun deploy da `main` prima del merge                                                                                                                                                                                                                           |
+
+### 6.3 Operazioni di rilascio e impedimenti
+
+| #   | Voce                                                                                                                                                                                                                                                                                                                                                                 | Tipo                                                          |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| 1   | **Integrazione Git di Cloudflare attiva** (divergenza D-24): sui commit della PR compare il check _Workers Builds: ham-radio-toolbox_ della GitHub App `cloudflare-workers-and-pages`, **fallito**. Un Worker `ham-radio-toolbox` con build collegate al repository contraddice ADR-0011 e rende la PR `unstable`. Il check non è obbligatorio e non blocca il merge | Bloccante per la chiusura formale: va rimosso prima del merge |
+| 2   | Merge squash della PR #1, deploy di produzione da `main` e smoke test su `https://ham-radio-toolbox.pages.dev`                                                                                                                                                                                                                                                       | Operazione di rilascio                                        |
+| 3   | Tag `v0.1.0` sul commit di `main` e GitHub Release                                                                                                                                                                                                                                                                                                                   | Operazione di rilascio                                        |
+| 4   | Lista dei bypass del ruleset da confermare nella UI GitHub                                                                                                                                                                                                                                                                                                           | Non bloccante                                                 |
+| 5   | Dati di dettaglio del collaudo Android (§ 6.1)                                                                                                                                                                                                                                                                                                                       | Non bloccante (documentale)                                   |
