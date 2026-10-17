@@ -42,11 +42,11 @@ infrastructure / providers (implementano le interfacce definite in application/d
 - **providers**: adapter verso fonti esterne (EiBi, HFCC, CelesTrak, SatNOGS, HamQSL…). Ognuno dichiara capacità, licenza, CORS e fallback.
 - **presentation**: componenti Vue, viste, store Pinia (gli store chiamano casi d'uso, non Dexie direttamente).
 
-Struttura indicativa del repository (da confermare in M0/M1, aggiornare qui se cambia):
+Struttura del repository (confermata in M0, dettagli in `docs/architecture/ARCHITECTURE.md` §4; aggiornare qui se cambia):
 
 ```
 src/
-  app/                 # bootstrap, router, layout, PWA registration
+  app/                 # composition root: bootstrap, container DI, router, layout, pwa/ (registrazione SW)
   shared/              # ui components, utils, i18n, zod helpers, types comuni
   core/                # domain condiviso: frequency, band, locator, time, units
   modules/
@@ -66,17 +66,25 @@ src/
     settings-backup/
   infrastructure/
     db/                # Dexie schema, migrazioni, repository base
-    providers/         # adapter fonti esterne
-    pwa/
+    providers/         # http client, registry, adapter fonti esterne
+    files/             # lettura/salvataggio file, hashing, limiti
+    workers/           # Web Worker (parsing grandi file, passaggi satellitari)
 tests/
+  integration/         # repository Dexie con fake-indexeddb
   e2e/                 # Playwright
-docs/
+  fixtures/            # file di test ridotti e anonimizzati
+docs/                  # struttura decisa in ADR-0002
+  PROJECT.md           # perimetro e obiettivi (riferimento primario)
+  requirements/REQUIREMENTS.md   # requisiti, casi d'uso
+  architecture/ARCHITECTURE.md   # architettura, verifica di coerenza
+  architecture/DATABASE.md       # modello dati, schema Dexie, backup
+  data-sources/SOURCES.md        # stato verifica di ogni fonte esterna
+  roadmap/ROADMAP.md             # milestone e backlog
   adr/                 # Architecture Decision Records (NNNN-titolo.md)
-  architecture.md
-  data-model.md
-  data-sources.md      # stato verifica di ogni fonte esterna
-  backlog.md
+  references/          # materiale personale, non versionato
 ```
+
+I test unitari stanno accanto ai sorgenti (`*.spec.ts`).
 
 ## Convenzioni di dati (obbligatorie)
 
@@ -99,7 +107,7 @@ docs/
 
 ## Fonti esterne
 
-Prima di implementare qualsiasi integrazione, verifica e documenta in `docs/data-sources.md`: endpoint reale, formato, CORS, licenza/termini, autenticazione, rate limit, fallback.
+Prima di implementare qualsiasi integrazione, verifica e documenta in `docs/data-sources/SOURCES.md`: endpoint reale, formato, CORS, licenza/termini, autenticazione, rate limit, fallback.
 
 Regole:
 
@@ -149,7 +157,7 @@ Ambiente di sviluppo: Linux / WSL2. Fornisci sempre comandi eseguibili lì.
 
 1. Lavora **per milestone in ordine** (M0 → M13), rispettando le dipendenze. Non anticipare milestone successive.
 2. Prima di scrivere codice su una milestone, riassumi obiettivi, dipendenze e criteri di accettazione.
-3. Fornisci **codice completo** dei file toccati, con il percorso. Niente pseudocodice né placeholder non dichiarati; niente funzionalità simulate presentate come complete. Se qualcosa resta da fare, segnalalo esplicitamente come `TODO(Mx):` e nel backlog.
+3. Fornisci **codice completo** dei file toccati, con il percorso. Niente pseudocodice né placeholder non dichiarati; niente funzionalità simulate presentate come complete. Se qualcosa resta da fare, segnalalo esplicitamente come `TODO(Mx):` e nel backlog (`docs/roadmap/ROADMAP.md`).
 4. Ogni decisione architetturale rilevante → **ADR** in `docs/adr/` (contesto, decisione, alternative, conseguenze).
 5. Aggiorna `docs/` e il README quando cambia il comportamento o la struttura.
 6. Alla fine di ogni milestone: **checklist di verifica** e criteri di completamento soddisfatti/non soddisfatti.

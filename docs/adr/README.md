@@ -1,0 +1,23 @@
+# Architecture Decision Records
+
+Decisioni architetturali di Ham Radio Toolbox. Formato e regole in [0001](0001-record-architecture-decisions.md); modello in [0000-template.md](0000-template.md).
+
+| #                                               | Titolo                                            | Stato     | Milestone |
+| ----------------------------------------------- | ------------------------------------------------- | --------- | --------- |
+| [0001](0001-record-architecture-decisions.md)   | Registrare le decisioni architetturali            | Accettato | M0        |
+| [0002](0002-documentation-layout.md)            | Struttura della documentazione                    | Accettato | M0        |
+| [0003](0003-local-first-pwa-without-backend.md) | PWA local-first senza backend                     | Accettato | M0        |
+| [0004](0004-layered-feature-modules.md)         | Moduli per feature con layer e porte/adattatori   | Accettato | M0        |
+| [0005](0005-data-conventions.md)                | Convenzioni dei dati persistiti                   | Accettato | M0        |
+| [0006](0006-dexie-naming-and-migrations.md)     | Naming Dexie e politica delle migrazioni          | Proposto  | M2        |
+| [0007](0007-external-provider-policy.md)        | Policy per le fonti esterne                       | Accettato | M0        |
+| [0008](0008-i18n-approach.md)                   | Approccio all'internazionalizzazione              | Proposto  | M1        |
+| [0009](0009-attachments-in-indexeddb.md)        | Allegati come Blob in IndexedDB                   | Proposto  | M2        |
+| [0010](0010-noaa-swpc-propagation-source.md)    | NOAA SWPC come fonte numerica per la propagazione | Proposto  | M12       |
+| [0011](0011-static-hosting-and-routing.md)      | Hosting statico e modalità di routing             | Proposto  | M1        |
+
+## Regole
+
+- Nuovo ADR: copia `0000-template.md` con il numero successivo, stato _Proposto_.
+- Un ADR _Accettato_ non si riscrive: si sostituisce con un nuovo ADR e si aggiorna lo stato del vecchio a _Sostituito da NNNN_.
+- Gli ADR _Proposti_ vanno decisi entro la milestone indicata, prima di scrivere il codice che ne dipende.
