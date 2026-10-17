@@ -138,7 +138,7 @@ export default defineConfig(
   },
 
   {
-    files: ["*.{js,ts}", "tests/**"],
+    files: ["*.{js,ts}", "scripts/**", "tests/**"],
     languageOptions: { globals: globals.node },
   },
 

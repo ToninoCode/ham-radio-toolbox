@@ -79,7 +79,7 @@ src/
     layout/                 # shell: header, nav, indicatore offline, toast aggiornamento
     theme/                  # preferenza tema sistema/chiaro/scuro (store Pinia) e applicazione al documento
     views/                  # viste di sistema: "In sviluppo" (FR-GEN-07), pagina non trovata
-    pwa/                    # registrazione SW, prompt update/installazione
+    pwa/                    # registrazione SW (virtual:pwa-register/vue) e notifiche di aggiornamento/offline
   shared/
     ui/                     # componenti UI generici (Button, Field, Dialog, DataTable, EmptyState…)
     i18n/                   # catalogo messaggi it, helper t(), formattatori Intl
@@ -122,6 +122,8 @@ src/
     workers/                # Web Worker (parsing grandi file, calcolo passaggi)
 public/
   _headers                  # header HTTP per Cloudflare Pages (CSP, sicurezza) — da M1
+  favicon.svg, icons/       # icone PWA generate da scripts/generate-pwa-icons.mjs (npm run icons)
+scripts/                    # script di sviluppo (generazione icone)
 tests/
   unit/                     # opzionale: i test unitari stanno accanto ai sorgenti (*.spec.ts)
   integration/              # repository Dexie con fake-indexeddb
@@ -302,6 +304,65 @@ Implementazione con `vite-plugin-pwa` (Workbox, modalità `generateSW`; `injectM
 - **Persistenza**: al primo avvio dopo l'installazione (o alla prima scrittura) `navigator.storage.persist()`; stato visibile in Impostazioni.
 - **Cache HTTP**: Cloudflare Pages serve gli asset con `Cache-Control: public, max-age=0, must-revalidate` ed `ETag`, quindi `sw.js` e `index.html` vengono sempre rivalidati e gli aggiornamenti sono rilevati senza regole custom. Gli asset con hash restano comunque nel precache del SW.
 - **Stato online**: composable `useOnline()` basato su eventi `online/offline` e sull'esito delle ultime richieste ai provider.
+
+### 8.1 Implementazione (M1, BL-M1-11)
+
+Configurazione in `vite.config.ts`, registrazione in `src/app/pwa/`. Nessun service worker scritto a mano: Workbox lo genera dalla configurazione.
+
+| Voce                    | Valore                                                                                                                                                                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plugin                  | `vite-plugin-pwa` 2.0, `strategies: 'generateSW'`, `registerType: 'prompt'`, `injectRegister: false` (registrazione da `virtual:pwa-register/vue`)                                                                                |
+| Manifest                | `name` e `description` dal catalogo i18n (`app.name`, `app.tagline`), `short_name` "Ham Toolbox", `id`/`start_url`/`scope` `/`, `display: standalone`, `orientation: any`, `lang: it`, `theme_color`/`background_color` `#0b1120` |
+| Icone                   | `public/icons/icon-192.png`, `icon-512.png` (`purpose: any`), `icon-maskable-512.png` (`maskable`, glifo nella zona sicura), `apple-touch-icon-180.png`, `public/favicon.svg`; generate con `npm run icons`                       |
+| Precache                | `globPatterns: **/*.{js,css,html,svg,png}` + manifest: shell, tutti i chunk lazy dei moduli, CSS, icone. Ogni voce ha una revisione; `cleanupOutdatedCaches` elimina le cache Workbox delle versioni precedenti                   |
+| Navigazioni             | `navigateFallback: 'index.html'`: ogni route (anche mai visitata o inesistente → pagina 404 dell'app) si apre offline                                                                                                             |
+| Runtime caching         | **Nessuno** in M1: non esistono fonti esterne. Le righe "Dati delle fonti native", "Tile OSM" e "Banner HamQSL" della tabella § 8 si attuano in M5/M8/M12                                                                         |
+| Attivazione             | Primo avvio: `clientsClaim` (la pagina è subito controllata). Aggiornamenti: `skipWaiting: false`, il nuovo SW resta in attesa finché l'utente non sceglie "Aggiorna"                                                             |
+| Controllo aggiornamenti | All'avvio (registrazione) e ogni 60 minuti se online (`registration.update()`), per le sessioni lunghe su tablet                                                                                                                  |
+| Identificativo build    | `<meta name="build-id">` da `HRT_BUILD_ID` (in CI lo SHA del commit, in locale `local`), per diagnostica e test                                                                                                                   |
+
+**Flusso di aggiornamento** (`PwaUpdatePrompt.vue`, notifiche non modali in una regione `aria-live`):
+
+1. il SW nuovo si installa in background e resta _in attesa_; compare "Nuova versione disponibile" con **Aggiorna** e **Più tardi**;
+2. _Più tardi_ nasconde l'avviso: la versione in uso non cambia, e l'avviso ricompare al successivo avvio finché il SW è in attesa;
+3. _Aggiorna_ attiva il SW in attesa e ricarica la pagina sulla nuova versione;
+4. al primo avvio compare "App pronta per l'uso offline" (si chiude da sola dopo 10 s o con il pulsante);
+5. errori di registrazione o di aggiornamento compaiono come avviso (`role="alert"`) chiudibile.
+
+**Dati**: il service worker gestisce solo le proprie cache (Cache Storage, prefisso `workbox-precache`). Non legge né modifica IndexedDB e non memorizza risposte di terzi, credenziali o contenuti privati. Aggiornare l'app non tocca i dati dell'utente; le migrazioni di schema restano compito di Dexie (M2).
+
+**Test automatici** (Playwright sulla build servita da `vite preview`):
+
+- `tests/e2e/pwa.spec.ts`: manifest e icone (dimensioni e tipo reali), assenza di errori di manifest e installabilità secondo Chrome (CDP `Page.getInstallabilityErrors`), registrazione e scope del SW, precache solo same-origin, offline completo: ricarica della dashboard, accesso diretto a tutte le route lazy, ricarica di una route interna, 404, nessun errore in console;
+- `tests/e2e/pwa-update.spec.ts`: due build reali (`HRT_BUILD_ID` v1 e v2) su un server dedicato, prompt, rinvio, ricarica, conferma e passaggio a v2;
+- unit test in `src/app/pwa/pwa.spec.ts` e `tests/integration/pwa-assets.spec.ts`.
+
+**Limitazioni note**
+
+- Playwright emula Chrome per Android (viewport, touch, user agent) su Chromium desktop: non verifica il prompt di installazione reale, la modalità standalone, lo splash screen né il ritaglio dell'icona maskable del launcher. Servono le verifiche manuali di § 8.2.
+- `context.setOffline` simula l'assenza di rete del browser, non la modalità aereo del sistema operativo.
+- La quota e l'eventuale eliminazione dei dati da parte del browser dipendono da `navigator.storage.persist()`, che arriva con M2.
+- Safari/iOS: best effort (NFR-CMP-02); l'icona Apple è presente, ma il comportamento non è verificato.
+- La prima visita richiede la rete: l'offline è disponibile solo dopo che il precache è completo (avviso "pronta per l'uso offline").
+
+### 8.2 Collaudo manuale su tablet Android
+
+Da eseguire su un tablet reale con Chrome stabile, sull'URL HTTPS di Cloudflare Pages (dopo BL-M1-13) oppure, in rete locale, sulla build servita con `npm run preview -- --host` raggiunta tramite `chrome://inspect` e port forwarding (`localhost` è un contesto sicuro, un IP di rete locale no). Annotare data, modello, versione di Android e di Chrome e il `build-id` (Strumenti per sviluppatori o sorgente della pagina).
+
+| #   | Verifica                                                                                                     | Esito atteso                                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| 1   | Apri l'URL, attendi "App pronta per l'uso offline".                                                          | Avviso visibile, nessun errore.                                                                                    |
+| 2   | Menu ⋮ → _Installa app_ (o _Aggiungi a schermata Home_).                                                     | Nome "Ham Toolbox", icona con antenna non tagliata.                                                                |
+| 3   | Avvia dall'icona.                                                                                            | Splash scuro, app a schermo intero senza barra degli indirizzi (standalone).                                       |
+| 4   | Ruota il tablet in verticale e in orizzontale su dashboard e su un modulo.                                   | Sidebar a icone in verticale, sidebar completa in orizzontale; nessuno scroll orizzontale.                         |
+| 5   | Attiva la modalità aereo, chiudi l'app dal multitasking, riaprila.                                           | Dashboard visibile, indicatore "Offline".                                                                          |
+| 6   | Offline: apri tutti i 13 moduli dalla navigazione, torna indietro con il gesto di sistema.                   | Ogni modulo mostra "In sviluppo"; il gesto indietro riporta alla pagina precedente.                                |
+| 7   | Offline: ricarica una pagina interna (trascina verso il basso, se disponibile, o riapri l'app su un modulo). | La pagina si riapre.                                                                                               |
+| 8   | Disattiva la modalità aereo.                                                                                 | Indicatore "Online" entro pochi secondi.                                                                           |
+| 9   | Pubblica una nuova build, riapri l'app installata.                                                           | "Nuova versione disponibile"; _Più tardi_ la nasconde; _Aggiorna_ ricarica sulla nuova build (`build-id` diverso). |
+| 10  | Tema: Sistema/Chiaro/Scuro dal menu.                                                                         | Colori e barra di stato coerenti.                                                                                  |
+
+Esito e anomalie si registrano nella checklist di chiusura della milestone (ROADMAP, consuntivo).
 
 ---
 

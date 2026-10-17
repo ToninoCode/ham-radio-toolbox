@@ -2,7 +2,7 @@
 
 PWA local-first e offline-first per radioamatori e SWL, pensata per tablet Android e utilizzabile da browser desktop: logbook HAM e SWL, explorer di frequenze, segnali, satelliti, APRS e ripetitori, calcolatori RF, propagazione, QSL, risorse e backup.
 
-> **Stato**: Milestone **M0 — Analisi e progettazione** chiusa il 2026-10-17. Milestone **M1 — Fondamenta PWA e dashboard** in corso: completati il Blocco A (tooling, qualità, test) e il Blocco B (design system, i18n, routing, layout, dashboard). I 13 moduli funzionali sono navigabili ma mostrano la pagina "In sviluppo" con la milestone prevista.
+> **Stato**: Milestone **M0 — Analisi e progettazione** chiusa il 2026-10-17. Milestone **M1 — Fondamenta PWA e dashboard** in corso: completati il Blocco A (tooling, qualità, test), il Blocco B (design system, i18n, routing, layout, dashboard) e il Blocco C (PWA installabile e offline). I 13 moduli funzionali sono navigabili ma mostrano la pagina "In sviluppo" con la milestone prevista.
 
 ## Documentazione
 
@@ -38,6 +38,18 @@ npm run test:e2e       # Playwright sulla build di produzione
 ```
 
 Per gli E2E su Linux/WSL2 servono il browser e le librerie di sistema: `npx playwright install chromium` e `sudo npx playwright install-deps chromium`. Elenco completo degli script in [CLAUDE.md](CLAUDE.md#comandi).
+
+## Installazione e uso offline
+
+L'app è una PWA: si installa dal browser, senza store.
+
+- **Android (Chrome)**: apri l'URL dell'app in HTTPS, attendi l'avviso "App pronta per l'uso offline", poi menu ⋮ → _Installa app_. L'app si avvia dall'icona a schermo intero.
+- **Offline**: dopo la prima visita completa, dashboard e pagine di tutti i moduli si aprono senza rete, anche da link diretto o dopo una ricarica. L'indicatore nell'intestazione mostra lo stato della connessione.
+- **Aggiornamenti**: quando è pubblicata una nuova versione compare l'avviso "Nuova versione disponibile". _Aggiorna_ ricarica l'app sulla nuova versione, _Più tardi_ la rimanda al prossimo avvio. L'aggiornamento non tocca i dati salvati sul dispositivo.
+
+Strategie di cache, limitazioni e collaudo manuale su tablet: [ARCHITECTURE.md § 8](docs/architecture/ARCHITECTURE.md#8-pwa-service-worker-e-strategia-offline).
+
+Per provare in locale la PWA serve la build di produzione: `npm run build && npm run preview`, poi `http://localhost:4173`. Il dev server (`npm run dev`) non registra il service worker. Strumenti per sviluppatori → _Application_ → _Service workers_ permette di simulare l'offline.
 
 ## Vincoli principali
 

@@ -73,6 +73,8 @@ src/
     workers/           # Web Worker (parsing grandi file, passaggi satellitari)
 public/
   _headers             # header HTTP Cloudflare Pages (CSP, sicurezza) — da M1
+  favicon.svg, icons/  # icone PWA (generate con npm run icons)
+scripts/               # script di sviluppo
 tests/
   integration/         # repository Dexie con fake-indexeddb
   e2e/                 # Playwright
@@ -147,7 +149,8 @@ npm run format         # Prettier (scrive)
 npm run format:check   # Prettier (solo verifica, usato in CI)
 npm run test           # Vitest (unit + integrazione)
 npm run test:watch     # Vitest in watch mode
-npm run test:e2e       # Playwright sulla build (vite preview, porta 4173)
+npm run test:e2e       # Playwright sulla build (vite preview, porta 4173; il test di aggiornamento PWA usa anche la 4174)
+npm run icons          # rigenera le icone PWA in public/ (da versionare)
 ```
 
 Prima esecuzione di Playwright su Linux/WSL2: `npx playwright install chromium` e, una tantum, `sudo npx playwright install-deps chromium` (librerie di sistema).

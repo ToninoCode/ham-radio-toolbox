@@ -1,4 +1,5 @@
-import type { MessageTree } from "../types";
+// Explicit extension: this file is also loaded by vite.config.ts (Node).
+import type { MessageTree } from "../types.ts";
 
 /**
  * Italian catalog: the reference catalog of the application (ADR-0008).
@@ -7,6 +8,7 @@ import type { MessageTree } from "../types";
 export const it = {
   app: {
     name: "Ham Radio Toolbox",
+    shortName: "Ham Toolbox",
     tagline: "Cassetta degli attrezzi per radioamatori e SWL",
     documentTitle: "{page} · Ham Radio Toolbox",
     skipToContent: "Vai al contenuto principale",
@@ -59,6 +61,22 @@ export const it = {
     system: "Sistema",
     light: "Chiaro",
     dark: "Scuro",
+  },
+  pwa: {
+    region: "Notifiche dell'app",
+    offlineReady: "App pronta per l'uso offline.",
+    offlineReadyDetail:
+      "Dashboard e pagine dei moduli si aprono anche senza connessione.",
+    updateAvailable: "Nuova versione disponibile.",
+    updateDetail:
+      "Aggiorna ora o più tardi: l'aggiornamento ricarica la pagina e non modifica i dati salvati sul dispositivo.",
+    update: "Aggiorna",
+    updating: "Aggiornamento in corso…",
+    later: "Più tardi",
+    dismiss: "Chiudi la notifica",
+    registerError:
+      "Modalità offline non disponibile: il service worker non è stato registrato.",
+    updateError: "Aggiornamento non riuscito. Riprova più tardi.",
   },
   availability: {
     available: "Disponibile",

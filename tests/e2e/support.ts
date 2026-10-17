@@ -41,3 +41,26 @@ export async function hasHorizontalOverflow(page: Page): Promise<boolean> {
     () => document.documentElement.scrollWidth > window.innerWidth,
   );
 }
+
+/**
+ * Waits until the service worker is active and controls the page, i.e. the
+ * precache is complete (install succeeded) and offline navigation works.
+ */
+export async function waitForServiceWorker(page: Page): Promise<string> {
+  return page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller) {
+      await new Promise<void>((resolve) =>
+        navigator.serviceWorker.addEventListener("controllerchange", () =>
+          resolve(),
+        ),
+      );
+    }
+    return registration.active?.scriptURL ?? "";
+  });
+}
+
+/** Reads the `<meta name="build-id">` of the loaded page. */
+export function buildIdOf(page: Page): Promise<string | null> {
+  return page.locator('meta[name="build-id"]').getAttribute("content");
+}
