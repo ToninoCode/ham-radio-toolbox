@@ -22,7 +22,9 @@ Il tuo ruolo è quello di **Technical Lead / Senior Full-Stack / Architect / Dev
 
 ## Stack
 
-Vue 3 (Composition API, `<script setup lang="ts">`) · TypeScript **strict** · Vite · Vue Router · Pinia · Tailwind CSS · IndexedDB + Dexie.js · Workbox / Service Worker · Zod · Leaflet + OpenStreetMap · satellite.js (SGP4) · Vitest · Playwright · ESLint + Prettier · GitHub Actions · hosting statico HTTPS.
+Vue 3 (Composition API, `<script setup lang="ts">`) · TypeScript **strict** · Vite · Vue Router · Pinia · Tailwind CSS · IndexedDB + Dexie.js · Workbox / Service Worker · Zod · Leaflet + OpenStreetMap · satellite.js (SGP4) · Vitest · Playwright · ESLint + Prettier · GitHub Actions · **Cloudflare Pages** (hosting statico HTTPS, Direct Upload da GitHub Actions, routing SPA in history mode — ADR-0011).
+
+i18n: catalogo **tipizzato interno** in `src/shared/i18n/` + API `Intl`, nessuna libreria esterna (ADR-0008).
 
 Non introdurre nuove dipendenze runtime senza motivarlo; preferisci soluzioni leggere e tree-shakeable (il target è un tablet).
 
@@ -69,6 +71,8 @@ src/
     providers/         # http client, registry, adapter fonti esterne
     files/             # lettura/salvataggio file, hashing, limiti
     workers/           # Web Worker (parsing grandi file, passaggi satellitari)
+public/
+  _headers             # header HTTP Cloudflare Pages (CSP, sicurezza) — da M1
 tests/
   integration/         # repository Dexie con fake-indexeddb
   e2e/                 # Playwright
@@ -124,7 +128,7 @@ Fonti di riferimento: EiBi, HFCC, SigIDWiki, CelesTrak, SatNOGS, HamQSL, QRZ, eQ
 - Nessun `v-html` con contenuto non sanificato. Tratta come non fidati tutti i file importati (ADIF, HTML Raindrop, CSV, JSON di backup).
 - Gestisci sempre stati di caricamento, vuoto ed errore nelle viste.
 - UI mobile-first, touch target ≥ 44px, dark mode, obiettivo **WCAG 2.2 AA** (etichette, contrasto, focus visibile, navigazione da tastiera).
-- Stringhe UI in italiano tramite il sistema i18n, **mai hardcoded** nei componenti. Codice, nomi, commenti e commit in **inglese**.
+- Stringhe UI in italiano tramite il catalogo i18n tipizzato (`src/shared/i18n/`), **mai hardcoded** nei componenti. Codice, nomi, commenti e commit in **inglese**.
 - Richiedi la persistenza dello storage (`navigator.storage.persist()`) e mostra lo stato in Settings.
 
 ## Comandi
@@ -182,7 +186,7 @@ Ambiente di sviluppo: Linux / WSL2. Fornisci sempre comandi eseguibili lì.
 | M12 | Propagazione e servizi esterni                                  |
 | M13 | Test, backup, sicurezza, ottimizzazione, release v1.0           |
 
-Durata orientativa: 16 settimane. Il cammino critico passa da M1 → M2 → M3: quasi tutti i moduli dipendono dal layer dati.
+Stima (aggiornata alla chiusura di M0, dettaglio in `docs/roadmap/ROADMAP.md`): 171 h di base per M1–M13 + 40 h di riserva (23 %) ≈ 21 settimane a 11 h/settimana, M0 inclusa. Le 16 settimane di `PROJECT.md` sono un valore provvisorio. Tutto dipende da M1 → M2 (layer dati). Dopo M2 ci sono due catene critiche di pari durata: M3 → M4 → M10 e M5 → M8 → M11. M5 fornisce il contratto dei provider a M8, M10 e M12. La riserva non si usa per aggiungere perimetro.
 
 ## Da non fare
 

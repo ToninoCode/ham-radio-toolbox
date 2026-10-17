@@ -2,7 +2,7 @@
 
 | Campo                | Valore                                                                                                                                                                                                      |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stato                | M0 — Bozza per approvazione                                                                                                                                                                                 |
+| Stato                | M0 — Approvato dal maintainer (2026-10-17)                                                                                                                                                                  |
 | Ultimo aggiornamento | 2026-10-17                                                                                                                                                                                                  |
 | Riferimento primario | [`docs/PROJECT.md`](../PROJECT.md) (perimetro e obiettivi)                                                                                                                                                  |
 | Documenti collegati  | [Architettura](../architecture/ARCHITECTURE.md) · [Database](../architecture/DATABASE.md) · [Fonti dati](../data-sources/SOURCES.md) · [Roadmap e backlog](../roadmap/ROADMAP.md) · [ADR](../adr/README.md) |
@@ -73,6 +73,7 @@ Un singolo utente può avere sia il profilo HAM sia quello SWL (FR-SET-01). La v
 | CON-10 | Convenzioni dati obbligatorie: UUID v4, frequenze in Hz interi, date UTC ISO 8601, WGS84 decimale.                               | CLAUDE, [ADR-0005](../adr/0005-data-conventions.md)     |
 | CON-11 | UI in italiano tramite i18n; codice, commenti e commit in inglese.                                                               | CLAUDE                                                  |
 | CON-12 | Hosting statico HTTPS: le risorse esterne servite solo in HTTP non sono raggiungibili dal browser (mixed content).               | Derivato, vedi [Fonti dati](../data-sources/SOURCES.md) |
+| CON-13 | Hosting target: Cloudflare Pages (Direct Upload da GitHub Actions), routing SPA in history mode.                                 | [ADR-0011](../adr/0011-static-hosting-and-routing.md)   |
 
 ---
 
@@ -140,17 +141,29 @@ Un singolo utente può avere sia il profilo HAM sia quello SWL (FR-SET-01). La v
 
 ### 4.4 MOD-04 — Frequency Explorer
 
-| ID        | Requisito                                                                                                                                                              | Pri. | M   |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | --- |
-| FR-FRQ-01 | **Import manuale EiBi** (file `sked-XNN.csv`, separatore `;`), con riconoscimento della stagione dal nome file e conservazione dei codici originali.                   | M    | M5  |
-| FR-FRQ-02 | **Import manuale HFCC** (file pubblico `XNNallx2.zip`/`.txt` a larghezza fissa) con parsing documentato.                                                               | S    | M5  |
-| FR-FRQ-03 | Gestione dataset per stagione: elenco dataset importati, stagione attiva, sostituzione atomica, eliminazione; avviso se la stagione importata non è quella corrente.   | M    | M5  |
-| FR-FRQ-04 | Ricerca per frequenza esatta o intervallo (± tolleranza), stazione, paese ITU, lingua, area target, sito trasmettitore.                                                | M    | M5  |
-| FR-FRQ-05 | Query "**in onda ora**" e "in onda all'ora X UTC del giorno Y", che tiene conto dei giorni della settimana e delle date di validità.                                   | M    | M5  |
-| FR-FRQ-06 | Consultazione completamente offline dei dataset importati.                                                                                                             | M    | M5  |
-| FR-FRQ-07 | Catalogo di frequenze personali (memorie): etichetta, frequenza, modo, servizio, note, tag.                                                                            | S    | M5  |
-| FR-FRQ-08 | Decodifica leggibile dei codici EiBi (lingue, paesi ITU, aree target, siti trasmettitori) tramite tabelle incluse nel dataset o inserite a mano, con fonte dichiarata. | S    | M5  |
-| FR-FRQ-09 | Provenienza visibile su ogni risultato: fonte, stagione, data di import, nome file.                                                                                    | M    | M5  |
+| ID        | Requisito                                                                                                                                                                                                                                                                                                            | Pri. | M   |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | --- |
+| FR-FRQ-01 | **Import manuale EiBi** (file `sked-XNN.csv`, separatore `;`), con riconoscimento della stagione dal nome file e conservazione dei codici originali.                                                                                                                                                                 | M    | M5  |
+| FR-FRQ-02 | **Import manuale HFCC**: pacchetto pubblico di stagione `XNNallx2.zip` (ZIP deflate con `XNNall00.TXT` a larghezza fissa e tabelle di riferimento) oppure il `.TXT` già estratto, con parsing documentato. Implementazione subordinata alle dipendenze HFCC-DEP-01..03 ([§ 4.4.1](#441-dipendenze-dellimport-hfcc)). | M    | M5  |
+| FR-FRQ-03 | Gestione dataset per stagione: elenco dataset importati, stagione attiva, sostituzione atomica, eliminazione; avviso se la stagione importata non è quella corrente.                                                                                                                                                 | M    | M5  |
+| FR-FRQ-04 | Ricerca per frequenza esatta o intervallo (± tolleranza), stazione, paese ITU, lingua, area target, sito trasmettitore.                                                                                                                                                                                              | M    | M5  |
+| FR-FRQ-05 | Query "**in onda ora**" e "in onda all'ora X UTC del giorno Y", che tiene conto dei giorni della settimana e delle date di validità.                                                                                                                                                                                 | M    | M5  |
+| FR-FRQ-06 | Consultazione completamente offline dei dataset importati.                                                                                                                                                                                                                                                           | M    | M5  |
+| FR-FRQ-07 | Catalogo di frequenze personali (memorie): etichetta, frequenza, modo, servizio, note, tag.                                                                                                                                                                                                                          | S    | M5  |
+| FR-FRQ-08 | Decodifica leggibile dei codici EiBi e HFCC (lingue, paesi/amministrazioni ITU, aree target/zone CIRAF, siti trasmettitori) tramite le tabelle di riferimento distribuite con i dataset o inserite a mano, con fonte dichiarata.                                                                                     | S    | M5  |
+| FR-FRQ-09 | Provenienza visibile su ogni risultato: fonte, stagione, data di import, nome file.                                                                                                                                                                                                                                  | M    | M5  |
+
+#### 4.4.1 Dipendenze dell'import HFCC
+
+HFCC resta nell'obiettivo della v1 ([ADR-0012](../adr/0012-hfcc-in-v1-scope.md)). L'implementazione di FR-FRQ-02 dipende da tre condizioni, da verificare all'inizio di M5 (task BL-M5-07) prima di scrivere il parser:
+
+| ID          | Dipendenza                                                                   | Stato al 2026-10-17                                                                                                                                                                                                                                                                                                                                                                                                                 | Condizione per procedere                                                                                                                           | Se non soddisfatta                                                                                                                                                                                                                                     |
+| ----------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| HFCC-DEP-01 | **Formato**: specifica dei campi del file `XNNall00.TXT`.                    | ⚠️ Parziale. Il file A26 (snapshot del 16-10-2026) è a larghezza fissa con riga-righello e intestazione `FREQ STRT STOP CIRAF ZONES LOC POWR AZIMUTH SLW ANT DAYS FDATE TDATE MOD AFRQ LANGUAGE ADM BRC FMO REQ# OLD ALT1 ALT2 ALT3 NOTES`, righe di commento con `;`, 3 388 record, decodificabile come UTF-8. HFCC rimanda come descrizione del formato al documento ITU _File format for submission of HFBC requirements_ (PDF). | Mappatura delle colonne confermata sul documento ITU e su almeno due stagioni (es. A26, B26).                                                      | Il parser si basa sulla riga-righello del file (posizioni lette dal file stesso) e sui test con due stagioni reali; nessuna posizione hardcoded senza verifica.                                                                                        |
+| HFCC-DEP-02 | **Licenza / termini d'uso** del pacchetto pubblico.                          | ⚠️ Da verificare. La pagina _Public access HFCC database_ dichiara lo scopo di rendere disponibili i palinsesti agli ascoltatori; nessun testo di licenza formale individuato.                                                                                                                                                                                                                                                      | Termini che consentano l'import da parte dell'utente in un'applicazione di terzi (testo pubblico o conferma scritta della segreteria HFCC).        | Nessun estratto reale nel repository: test con fixture **sintetiche** conformi al formato. Se i termini **vietano** l'uso, la rimozione di FR-FRQ-02 è una variazione di perimetro: nuovo ADR e approvazione del maintainer, non un rinvio silenzioso. |
+| HFCC-DEP-03 | **Fattibilità tecnica**: lettura dello ZIP nel browser e accesso alla fonte. | ✅ Verificata in linea di principio. ZIP con metodo _deflate_ (8) e 7 file (`A26all00.TXT` 524 KB, `language.txt`, `site.txt`, `admin.txt`, `antenna.txt`, `broadcas.txt`, `fmorg.txt`), 165 KB compresso. Il sito è raggiungibile **solo in HTTP**, quindi solo import manuale.                                                                                                                                                    | Spike: decompressione con `DecompressionStream('deflate-raw')` + lettura della directory centrale ZIP, oppure dipendenza leggera motivata con ADR. | Fallback già previsto: import del `.TXT` estratto dall'utente.                                                                                                                                                                                         |
+
+La Definition of Done ([§ 7](#7-criteri-di-accettazione-della-v10), criterio 5) richiede che **entrambi** gli importer (EiBi e HFCC) superino i test di validazione.
 
 ### 4.5 MOD-05 — Signal Explorer
 
@@ -313,10 +326,10 @@ Formato sintetico. Le precondizioni comuni a tutti i casi d'uso: app installata 
 - **Flusso**: 1) scelta categoria; 2) form con campi comuni + campi specifici; 3) per broadcast: suggerimento delle stazioni in palinsesto sulla frequenza all'ora indicata (se dataset importato); 4) SINPO con selettori 1–5; 5) allegato audio opzionale; 6) salvataggio.
 - **Vincolo**: per Aeronautica/Marittima il form non propone campi per il contenuto delle comunicazioni (FR-SWL-04).
 
-### UC-05 — Importare un palinsesto EiBi e cercare "cosa c'è in onda"
+### UC-05 — Importare un palinsesto EiBi o HFCC e cercare "cosa c'è in onda"
 
-- **Attore**: SWL. **Requisiti**: FR-FRQ-01, 03, 05, 09.
-- **Flusso**: 1) l'utente scarica `sked-XNN.csv` dal sito EiBi (link nell'app); 2) lo importa; 3) anteprima con stagione rilevata, numero righe valide/invalide; 4) se esiste un dataset della stessa stagione, lo sostituisce atomicamente; 5) l'utente apre "In onda ora" e filtra per lingua/banda.
+- **Attore**: SWL. **Requisiti**: FR-FRQ-01, 02, 03, 05, 09.
+- **Flusso**: 1) l'utente scarica `sked-XNN.csv` dal sito EiBi o `XNNallx2.zip` dal sito HFCC (link nell'app); 2) lo importa; 3) anteprima con stagione rilevata, numero righe valide/invalide; 4) se esiste un dataset della stessa stagione, lo sostituisce atomicamente; 5) l'utente apre "In onda ora" e filtra per lingua/banda.
 - **Alternativi**: 3a) stagione non corrente → avviso, import comunque consentito.
 
 ### UC-06 — Aggiornare gli elementi orbitali e prevedere i passaggi
@@ -394,16 +407,16 @@ Formato sintetico. Le precondizioni comuni a tutti i casi d'uso: app installata 
 
 Dispositivo di riferimento: tablet Android di fascia media (≈ 4 GB RAM, Chrome stabile). Valori da verificare in M13 con Lighthouse e misure manuali.
 
-| ID          | Requisito                                                                                             |
-| ----------- | ----------------------------------------------------------------------------------------------------- |
-| NFR-PERF-01 | JS iniziale (route dashboard) ≤ 200 KB gzip; moduli caricati in lazy loading per route.               |
-| NFR-PERF-02 | Avvio a freddo da cache (app installata) con dashboard interattiva ≤ 2 s.                             |
-| NFR-PERF-03 | Navigazione fra moduli ≤ 300 ms percepiti (chunk già in cache).                                       |
-| NFR-PERF-04 | Logbook con 50 000 QSO: apertura lista ≤ 1 s, filtro per nominativo/banda ≤ 300 ms.                   |
-| NFR-PERF-05 | Query "in onda ora" su un dataset EiBi completo (≈ 10–15 000 righe) ≤ 300 ms.                         |
-| NFR-PERF-06 | Import ADIF di 10 000 QSO ≤ 10 s, senza bloccare l'interfaccia (parsing in Web Worker se necessario). |
-| NFR-PERF-07 | Previsione passaggi 48 h per ≤ 100 satelliti ≤ 3 s (Web Worker).                                      |
-| NFR-PERF-08 | Lighthouse (mobile) ≥ 90 in Performance, Accessibility, Best Practices; PWA installabile.             |
+| ID          | Requisito                                                                                                                           |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| NFR-PERF-01 | JS iniziale (route dashboard) ≤ 200 KB gzip; moduli caricati in lazy loading per route.                                             |
+| NFR-PERF-02 | Avvio a freddo da cache (app installata) con dashboard interattiva ≤ 2 s.                                                           |
+| NFR-PERF-03 | Navigazione fra moduli ≤ 300 ms percepiti (chunk già in cache).                                                                     |
+| NFR-PERF-04 | Logbook con 50 000 QSO: apertura lista ≤ 1 s, filtro per nominativo/banda ≤ 300 ms.                                                 |
+| NFR-PERF-05 | Query "in onda ora" sui dataset di una stagione (EiBi A26: 9 593 righe; HFCC A26: 3 388 record; verificati il 2026-10-17) ≤ 300 ms. |
+| NFR-PERF-06 | Import ADIF di 10 000 QSO ≤ 10 s, senza bloccare l'interfaccia (parsing in Web Worker se necessario).                               |
+| NFR-PERF-07 | Previsione passaggi 48 h per ≤ 100 satelliti ≤ 3 s (Web Worker).                                                                    |
+| NFR-PERF-08 | Lighthouse (mobile) ≥ 90 in Performance, Accessibility, Best Practices; PWA installabile.                                           |
 
 ### 6.3 Usabilità e accessibilità (NFR-UX, NFR-ACC)
 
@@ -462,22 +475,22 @@ Dispositivo di riferimento: tablet Android di fascia media (≈ 4 GB RAM, Chrome
 
 Coincidono con la _Definition of Done_ di `PROJECT.md` §12, resa verificabile:
 
-| #   | Criterio                                                 | Verifica                                                    |
-| --- | -------------------------------------------------------- | ----------------------------------------------------------- |
-| 1   | PWA installabile su tablet Android supportato            | Test manuale su dispositivo + Lighthouse                    |
-| 2   | Tutti i 14 moduli accessibili                            | E2E navigazione                                             |
-| 3   | Funzioni offline di NFR-OFF-01 operative                 | E2E offline + checklist su dispositivo                      |
-| 4   | QSO e ricezioni SWL persistiti in modo affidabile        | Test integrazione repository + E2E con reload               |
-| 5   | Importer EiBi/HFCC superano i test di validazione        | Unit test su fixture reali ridotte                          |
-| 6   | Calcoli satellitari corretti con dataset validi          | Unit test SGP4 contro valori di riferimento                 |
-| 7   | Calcolatori RF superano i test numerici                  | Unit test con valori documentati                            |
-| 8   | Import Raindrop funzionante                              | Unit + E2E con fixture anonimizzata                         |
-| 9   | QSL, DX, APRS, ripetitori entro il perimetro documentato | E2E + revisione di [Fonti dati](../data-sources/SOURCES.md) |
-| 10  | Export, backup e restore testati                         | Unit round-trip + E2E                                       |
-| 11  | Build di produzione riuscita                             | CI                                                          |
-| 12  | Test automatici e test di accettazione Android superati  | CI + checklist firmata                                      |
-| 13  | Documentazione utente e tecnica completa                 | Revisione `docs/` + README                                  |
-| 14  | Limiti noti e restrizioni dei provider documentati       | `SOURCES.md` + pagina "Informazioni" in app                 |
+| #   | Criterio                                                 | Verifica                                                                                                                                                                                  |
+| --- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | PWA installabile su tablet Android supportato            | Test manuale su dispositivo + Lighthouse                                                                                                                                                  |
+| 2   | Tutti i 14 moduli accessibili                            | E2E navigazione                                                                                                                                                                           |
+| 3   | Funzioni offline di NFR-OFF-01 operative                 | E2E offline + checklist su dispositivo                                                                                                                                                    |
+| 4   | QSO e ricezioni SWL persistiti in modo affidabile        | Test integrazione repository + E2E con reload                                                                                                                                             |
+| 5   | Importer **EiBi e HFCC** superano i test di validazione  | Unit test: EiBi su estratto reale ridotto (licenza libera); HFCC su estratto reale se HFCC-DEP-02 lo consente, altrimenti su fixture sintetiche conformi al formato; test su due stagioni |
+| 6   | Calcoli satellitari corretti con dataset validi          | Unit test SGP4 contro valori di riferimento                                                                                                                                               |
+| 7   | Calcolatori RF superano i test numerici                  | Unit test con valori documentati                                                                                                                                                          |
+| 8   | Import Raindrop funzionante                              | Unit + E2E con fixture anonimizzata                                                                                                                                                       |
+| 9   | QSL, DX, APRS, ripetitori entro il perimetro documentato | E2E + revisione di [Fonti dati](../data-sources/SOURCES.md)                                                                                                                               |
+| 10  | Export, backup e restore testati                         | Unit round-trip + E2E                                                                                                                                                                     |
+| 11  | Build di produzione riuscita                             | CI                                                                                                                                                                                        |
+| 12  | Test automatici e test di accettazione Android superati  | CI + checklist firmata                                                                                                                                                                    |
+| 13  | Documentazione utente e tecnica completa                 | Revisione `docs/` + README                                                                                                                                                                |
+| 14  | Limiti noti e restrizioni dei provider documentati       | `SOURCES.md` + pagina "Informazioni" in app                                                                                                                                               |
 
 ---
 
@@ -498,13 +511,14 @@ Aggiunti in M0 (derivati dai vincoli, da confermare):
 
 Da risolvere entro la milestone indicata; ogni decisione produce o aggiorna un ADR.
 
-| #    | Questione                                                                                                  | Proposta                                                                                                                                                                              | Entro |
-| ---- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| Q-01 | Hosting statico: GitHub Pages, Cloudflare Pages o altro? Influisce su base path, routing SPA e header CSP. | Cloudflare Pages o Netlify (header personalizzati e fallback SPA); GitHub Pages solo con `createWebHashHistory` o fallback 404. [ADR-0011](../adr/0011-static-hosting-and-routing.md) | M1    |
-| Q-02 | Libreria i18n: `vue-i18n` o catalogo tipizzato leggero?                                                    | Catalogo tipizzato interno + `Intl`. [ADR-0008](../adr/0008-i18n-approach.md)                                                                                                         | M1    |
-| Q-03 | Fonte numerica per la propagazione non presente in `PROJECT.md`.                                           | Aggiungere NOAA SWPC. [ADR-0010](../adr/0010-noaa-swpc-propagation-source.md)                                                                                                         | M12   |
-| Q-04 | Integrazione nativa DX Summit: termini d'uso dell'API da confermare con i gestori.                         | Link nella v1; nativa solo con conferma scritta.                                                                                                                                      | M10   |
-| Q-05 | Licenza dei contenuti testuali SigIDWiki (riuso di descrizioni).                                           | Descrizioni redatte in proprio + link; nessuna copia finché la licenza non è verificata.                                                                                              | M7    |
-| Q-06 | Fonte delle tabelle DXCC (prefissi → entità) per statistiche e "nuovo paese".                              | Valutare `cty.dat` (AD1C, Country Files) — licenza e formato da verificare; fallback: campo DXCC da ADIF/inserimento manuale.                                                         | M3    |
-| Q-07 | Dimensione massima consigliata degli allegati audio e impatto sulla quota.                                 | 20 MB per file, avviso oltre l'80 % della quota. [ADR-0009](../adr/0009-attachments-in-indexeddb.md)                                                                                  | M2    |
-| Q-08 | I documenti di M0 vanno committati sul repository git (già inizializzato, remote GitHub).                  | Commit `docs: complete M0 analysis and design` dopo l'approvazione.                                                                                                                   | M0    |
+| #    | Questione                                                                          | Proposta                                                                                                                      | Entro       |
+| ---- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| Q-01 | Hosting statico.                                                                   | **Risolta**: Cloudflare Pages, history mode ([ADR-0011](../adr/0011-static-hosting-and-routing.md), accettato).               | M0 ✅       |
+| Q-02 | Libreria i18n.                                                                     | **Risolta**: catalogo tipizzato interno + `Intl` ([ADR-0008](../adr/0008-i18n-approach.md), accettato).                       | M0 ✅       |
+| Q-03 | Fonte numerica per la propagazione non presente in `PROJECT.md`.                   | Proposta NOAA SWPC, decisione in M12 ([ADR-0010](../adr/0010-noaa-swpc-propagation-source.md)).                               | M12         |
+| Q-04 | Integrazione nativa DX Summit: termini d'uso dell'API da confermare con i gestori. | Link nella v1; nativa solo con conferma scritta.                                                                              | M10         |
+| Q-05 | Licenza dei contenuti testuali SigIDWiki (riuso di descrizioni).                   | Descrizioni redatte in proprio + link; nessuna copia finché la licenza non è verificata.                                      | M7          |
+| Q-06 | Fonte delle tabelle DXCC (prefissi → entità) per statistiche e "nuovo paese".      | Valutare `cty.dat` (AD1C, Country Files) — licenza e formato da verificare; fallback: campo DXCC da ADIF/inserimento manuale. | M3          |
+| Q-07 | Dimensione massima consigliata degli allegati audio e impatto sulla quota.         | 20 MB per file, avviso oltre l'80 % della quota. [ADR-0009](../adr/0009-attachments-in-indexeddb.md)                          | M2          |
+| Q-08 | Commit della documentazione di M0.                                                 | **Risolta**: commit `08f2d66` (_docs: complete milestone M0_); la chiusura formale va in un commit successivo.                | M0 ✅       |
+| Q-09 | Termini d'uso del pacchetto pubblico HFCC (HFCC-DEP-02).                           | Cercare un testo pubblico o chiedere conferma scritta alla segreteria HFCC; fino ad allora solo fixture sintetiche.           | M5 (inizio) |

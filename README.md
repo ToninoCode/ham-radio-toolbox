@@ -2,7 +2,7 @@
 
 PWA local-first e offline-first per radioamatori e SWL, pensata per tablet Android e utilizzabile da browser desktop: logbook HAM e SWL, explorer di frequenze, segnali, satelliti, APRS e ripetitori, calcolatori RF, propagazione, QSL, risorse e backup.
 
-> **Stato**: Milestone **M0 — Analisi e progettazione** (documentazione in approvazione). Le funzionalità non sono ancora implementate: `src/` contiene solo lo scaffold iniziale di Vite, che verrà sostituito in M1.
+> **Stato**: Milestone **M0 — Analisi e progettazione** chiusa il 2026-10-17; prossima milestone **M1** (fondamenta PWA). Le funzionalità non sono ancora implementate: `src/` contiene solo lo scaffold iniziale di Vite, che verrà sostituito in M1.
 
 ## Documentazione
 
@@ -19,7 +19,7 @@ PWA local-first e offline-first per radioamatori e SWL, pensata per tablet Andro
 
 ## Stack
 
-Vue 3 · TypeScript strict · Vite · Vue Router · Pinia · Tailwind CSS · IndexedDB/Dexie.js · Zod · Workbox (vite-plugin-pwa) · Leaflet/OpenStreetMap · satellite.js · Vitest · Playwright · ESLint/Prettier · GitHub Actions.
+Vue 3 · TypeScript strict · Vite · Vue Router · Pinia · Tailwind CSS · IndexedDB/Dexie.js · Zod · Workbox (vite-plugin-pwa) · Leaflet/OpenStreetMap · satellite.js · Vitest · Playwright · ESLint/Prettier · GitHub Actions · Cloudflare Pages.
 
 ## Sviluppo
 

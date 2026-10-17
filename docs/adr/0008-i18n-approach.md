@@ -1,6 +1,6 @@
 # 0008 — Approccio all'internazionalizzazione
 
-- **Stato**: Proposto (da decidere all'avvio di M1)
+- **Stato**: Accettato (approvato dal maintainer il 2026-10-17, chiusura M0)
 - **Data**: 2026-10-17
 - **Milestone**: M1
 
@@ -8,7 +8,7 @@
 
 `CLAUDE.md` impone stringhe UI in italiano tramite un sistema i18n, mai hardcoded, ma lo stack non include una libreria i18n. In v1 c'è una sola lingua (italiano); l'inglese è un'evoluzione possibile (NFR-I18N-03). Vincoli: leggerezza, tree-shaking, CSP senza `unsafe-eval`, TypeScript strict.
 
-## Decisione (proposta)
+## Decisione
 
 Catalogo **tipizzato interno** in `src/shared/i18n/`:
 

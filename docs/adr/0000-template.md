@@ -1,6 +1,6 @@
 # NNNN — Titolo della decisione
 
-- **Stato**: Proposto | Accettato | Respinto | Sostituito da [NNNN](NNNN-titolo.md)
+- **Stato**: Proposto | Accettato | Respinto | Sostituito da NNNN
 - **Data**: AAAA-MM-GG
 - **Milestone**: Mx
 

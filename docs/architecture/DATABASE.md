@@ -304,27 +304,28 @@ Memorie/catalogo personale: `id`, `frequencyHz` (IDX), `bandwidthHz?`, `mode`, `
 
 ### `broadcast_schedules` (v2, M5)
 
-| Campo                      | Tipo               | Note                                                      |
-| -------------------------- | ------------------ | --------------------------------------------------------- |
-| `id`                       | uuid               | PK                                                        |
-| `importJobId`              | uuid               | IDX; identifica il dataset                                |
-| `sourceKey`                | `'eibi' \| 'hfcc'` |                                                           |
-| `season`                   | string             | IDX; `A26`, `B26`                                         |
-| `frequencyHz`              | int                | IDX (EiBi è in kHz con decimali → ×1000 e arrotondamento) |
-| `startMinute`, `endMinute` | int `0..1440`      | Fasce a cavallo di mezzanotte: `endMinute < startMinute`  |
-| `days`                     | int bitmask opz.   | Lun=1 … Dom=64; assente = tutti i giorni                  |
-| `validFrom`, `validTo`     | date opz.          | Colonne Start/Stop EiBi                                   |
-| `stationName`              | string             | IDX                                                       |
-| `stationId`                | uuid opz.          |                                                           |
-| `itu`                      | string opz.        | IDX; paese ITU                                            |
-| `language`                 | string opz.        | IDX                                                       |
-| `targetArea`               | string opz.        |                                                           |
-| `transmitterSite`          | string opz.        |                                                           |
-| `powerKw`, `azimuthDeg`    | number opz.        | HFCC                                                      |
-| `remarks`                  | string opz.        |                                                           |
-| `raw`                      | string             | Riga originale                                            |
+| Campo                      | Tipo               | Note                                                                                                                                                                               |
+| -------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                       | uuid               | PK                                                                                                                                                                                 |
+| `importJobId`              | uuid               | IDX; identifica il dataset                                                                                                                                                         |
+| `sourceKey`                | `'eibi' \| 'hfcc'` |                                                                                                                                                                                    |
+| `season`                   | string             | IDX; `A26`, `B26`                                                                                                                                                                  |
+| `frequencyHz`              | int                | IDX (EiBi è in kHz con decimali e HFCC in kHz interi → ×1000, con arrotondamento)                                                                                                  |
+| `startMinute`, `endMinute` | int `0..1440`      | Fasce a cavallo di mezzanotte: `endMinute < startMinute`                                                                                                                           |
+| `days`                     | int bitmask opz.   | Lun=1 … Dom=64; assente = tutti i giorni                                                                                                                                           |
+| `validFrom`, `validTo`     | date opz.          | Colonne Start/Stop di EiBi, `FDATE`/`TDATE` di HFCC (`DDMMYY`)                                                                                                                     |
+| `stationName`              | string             | IDX                                                                                                                                                                                |
+| `stationId`                | uuid opz.          |                                                                                                                                                                                    |
+| `itu`                      | string opz.        | IDX; paese ITU                                                                                                                                                                     |
+| `language`                 | string opz.        | IDX                                                                                                                                                                                |
+| `targetArea`               | string opz.        | EiBi `Target`; HFCC zone CIRAF (es. `4,9,27,37-39`)                                                                                                                                |
+| `transmitterSite`          | string opz.        | EiBi colonna sito; HFCC `LOC` (codice da `site.txt`)                                                                                                                               |
+| `powerKw`, `azimuthDeg`    | number opz.        | HFCC `POWR`, `AZIMUTH`                                                                                                                                                             |
+| `hfcc`                     | object opz.        | Solo HFCC: `{ adm, broadcaster, fmo, modulation, antennaCode, slew, requestId }` (colonne `ADM`, `BRC`, `FMO`, `MOD`, `ANT`, `SLW`, `REQ#`); mappatura definitiva dopo HFCC-DEP-01 |
+| `remarks`                  | string opz.        |                                                                                                                                                                                    |
+| `raw`                      | string             | Riga originale                                                                                                                                                                     |
 
-Indici composti: `[season+frequencyHz]`. La query "in onda ora" filtra per frequenza/indice e poi in memoria per minuto/giorno (≤ 15 000 righe per stagione: entro NFR-PERF-05).
+Indici composti: `[season+frequencyHz]`. La query "in onda ora" filtra per frequenza/indice e poi in memoria per minuto/giorno (A26: 9 593 righe EiBi, 3 388 record HFCC: entro NFR-PERF-05).
 
 ### `signal_types` (v3, M7)
 
@@ -440,16 +441,16 @@ flowchart LR
   C -->|errore| R[Rollback<br/>import_jobs: failed]
 ```
 
-| Formato       | Limite file (proposta)    | Parser                                                                                                                                   |
-| ------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| ADIF `.adi`   | 50 MB                     | Tokenizzatore `<FIELD:len[:type]>` con gestione `<EOH>`/`<EOR>`, lunghezza in byte UTF-8                                                 |
-| EiBi CSV      | 10 MB                     | CSV `;`, prima riga header, codifica da verificare (Latin-1 vs UTF-8) in M5                                                              |
-| HFCC `allx2`  | 20 MB (ZIP) / 50 MB (TXT) | Larghezza fissa; decompressione ZIP: valutare `DecompressionStream` + parsing del contenitore o una dipendenza leggera (decisione in M5) |
-| TLE / OMM     | 10 MB                     | Checksum TLE verificato; OMM JSON validato con Zod                                                                                       |
-| SatNOGS JSON  | 20 MB                     | Validazione Zod dei campi usati                                                                                                          |
-| Raindrop HTML | 10 MB                     | `DOMParser`                                                                                                                              |
-| CSV generico  | 10 MB                     | Parser CSV con mapping colonne                                                                                                           |
-| Backup JSON   | 500 MB                    | Validazione per tabella                                                                                                                  |
+| Formato       | Limite file (proposta)    | Parser                                                                                                                                                                                                                   |
+| ------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ADIF `.adi`   | 50 MB                     | Tokenizzatore `<FIELD:len[:type]>` con gestione `<EOH>`/`<EOR>`, lunghezza in byte UTF-8                                                                                                                                 |
+| EiBi CSV      | 10 MB                     | CSV `;`, prima riga header, codifica da verificare (Latin-1 vs UTF-8) in M5                                                                                                                                              |
+| HFCC `allx2`  | 20 MB (ZIP) / 50 MB (TXT) | Larghezza fissa con riga-righello; ZIP _deflate_ (verificato) decompresso con `DecompressionStream('deflate-raw')` + directory centrale, oppure dipendenza leggera con ADR ([ADR-0012](../adr/0012-hfcc-in-v1-scope.md)) |
+| TLE / OMM     | 10 MB                     | Checksum TLE verificato; OMM JSON validato con Zod                                                                                                                                                                       |
+| SatNOGS JSON  | 20 MB                     | Validazione Zod dei campi usati                                                                                                                                                                                          |
+| Raindrop HTML | 10 MB                     | `DOMParser`                                                                                                                                                                                                              |
+| CSV generico  | 10 MB                     | Parser CSV con mapping colonne                                                                                                                                                                                           |
+| Backup JSON   | 500 MB                    | Validazione per tabella                                                                                                                                                                                                  |
 
 ---
 
