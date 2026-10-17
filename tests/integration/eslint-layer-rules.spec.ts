@@ -189,3 +189,36 @@ describe("layer rules: allowed dependencies are not reported", () => {
     expect(violations).toEqual([]);
   });
 });
+
+/**
+ * NFR-I18N-01 / ADR-0008: UI text must come from the typed catalog. The check
+ * covers template text and the user-facing attributes (title, aria-label,
+ * placeholder, alt…) of every .vue file.
+ */
+describe("i18n rule: hardcoded UI text in templates", () => {
+  async function bareStrings(template: string) {
+    const code = `<script setup lang="ts">\nimport { useI18n } from "@/shared/i18n";\nconst { t } = useI18n();\n</script>\n\n<template>\n${template}\n</template>\n`;
+    const [result] = await eslint.lintText(code, {
+      filePath: "src/modules/ham-logbook/presentation/views/QsoListView.vue",
+    });
+    if (!result) throw new Error("No lint result");
+    expect(result.messages.filter((m) => m.fatal)).toEqual([]);
+    return result.messages.filter(
+      (m) => m.ruleId === "vue/no-bare-strings-in-template",
+    );
+  }
+
+  it.each([
+    ["text content", "  <p>Nessun QSO registrato</p>"],
+    ["aria-label", '  <button aria-label="Chiudi"></button>'],
+    ["title", '  <span title="Frequenza"></span>'],
+    ["placeholder", '  <input placeholder="Nominativo" />'],
+  ])("reports %s", async (_label, template) => {
+    expect((await bareStrings(template)).length).toBeGreaterThan(0);
+  });
+
+  it("accepts text from the catalog", async () => {
+    const template = '  <p :title="t(\'nav.home\')">{{ t("nav.home") }}</p>';
+    expect(await bareStrings(template)).toEqual([]);
+  });
+});

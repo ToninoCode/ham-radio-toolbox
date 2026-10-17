@@ -145,6 +145,8 @@ export default defineConfig(
   {
     rules: {
       "vue/multi-word-component-names": ["error", { ignores: ["App"] }],
+      // UI text comes from the typed i18n catalog only (NFR-I18N-01, ADR-0008).
+      "vue/no-bare-strings-in-template": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },

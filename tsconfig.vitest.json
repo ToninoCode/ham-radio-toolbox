@@ -9,7 +9,8 @@
     "src/**/*.ts",
     "src/**/*.vue",
     "tests/integration/**/*.ts",
-    "tests/fixtures/**/*.ts"
+    "tests/fixtures/**/*.ts",
+    "tests/support/**/*.ts"
   ],
   "exclude": []
 }

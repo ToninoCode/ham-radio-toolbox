@@ -8,6 +8,7 @@ export default mergeConfig(
       environment: "jsdom",
       include: ["src/**/*.spec.ts", "tests/integration/**/*.spec.ts"],
       exclude: [...configDefaults.exclude, "tests/e2e/**"],
+      setupFiles: ["tests/support/setup.ts"],
       restoreMocks: true,
     },
   }),

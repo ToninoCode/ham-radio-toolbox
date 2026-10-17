@@ -74,12 +74,16 @@ src/
     main.ts                 # bootstrap (createApp, pinia, router, container)
     App.vue
     router.ts               # route lazy per modulo
-    container.ts            # wiring porte → adattatori
+    modules.ts              # registro dei manifest dei 14 moduli → catalogo fornito con provide (M1)
+    container.ts            # wiring porte → adattatori (da M2, con i primi adattatori)
     layout/                 # shell: header, nav, indicatore offline, toast aggiornamento
+    theme/                  # preferenza tema sistema/chiaro/scuro (store Pinia) e applicazione al documento
+    views/                  # viste di sistema: "In sviluppo" (FR-GEN-07), pagina non trovata
     pwa/                    # registrazione SW, prompt update/installazione
   shared/
     ui/                     # componenti UI generici (Button, Field, Dialog, DataTable, EmptyState…)
     i18n/                   # catalogo messaggi it, helper t(), formattatori Intl
+    modules/                # contratto ModuleManifest, catalogo dei moduli e injection key
     composables/            # useOnline, useAsyncState, useMediaQuery…
     utils/                  # utility generiche senza dominio radio
     types/                  # tipi comuni (Result, Brand…)
@@ -136,6 +140,7 @@ docs/
 
 Note:
 
+- Ogni modulo esporta da `index.ts` un `manifest` (`ModuleManifest`: percorso, area HAM/SWL/condivisa, workspace, icona, chiavi i18n, disponibilità o milestone prevista, vista lazy). `app/modules.ts` li aggrega; router, navigazione e dashboard li leggono dal catalogo iniettato, senza importare gli altri moduli (introdotto in M1).
 - Un modulo **senza** logica di dominio propria (es. `aprs-explorer` in v1, fatto di link e segnalibri) può avere solo i layer necessari; la struttura non va riempita con file vuoti.
 - I test unitari stanno accanto al codice (`locator.spec.ts` vicino a `locator.ts`); integrazione ed E2E in `tests/`.
 - Il materiale in `docs/references/` è escluso dal versionamento (vedi [§ 13](#13-verifica-di-coerenza-progetto--stack--repository)); le fixture di test derivate vanno create anonimizzate in `tests/fixtures/`.

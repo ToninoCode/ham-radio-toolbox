@@ -2,7 +2,7 @@
 
 PWA local-first e offline-first per radioamatori e SWL, pensata per tablet Android e utilizzabile da browser desktop: logbook HAM e SWL, explorer di frequenze, segnali, satelliti, APRS e ripetitori, calcolatori RF, propagazione, QSL, risorse e backup.
 
-> **Stato**: Milestone **M0 — Analisi e progettazione** chiusa il 2026-10-17. Milestone **M1 — Fondamenta PWA e dashboard** in corso: completato il Blocco A (tooling, qualità, test). Le funzionalità dei moduli non sono ancora implementate.
+> **Stato**: Milestone **M0 — Analisi e progettazione** chiusa il 2026-10-17. Milestone **M1 — Fondamenta PWA e dashboard** in corso: completati il Blocco A (tooling, qualità, test) e il Blocco B (design system, i18n, routing, layout, dashboard). I 13 moduli funzionali sono navigabili ma mostrano la pagina "In sviluppo" con la milestone prevista.
 
 ## Documentazione
 

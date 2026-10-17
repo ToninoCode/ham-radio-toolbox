@@ -1,0 +1,146 @@
+/*
+ * Design system — Ham Radio Toolbox (BL-M1-06).
+ *
+ * Semantic tokens are CSS custom properties switched by theme; Tailwind
+ * utilities (`bg-surface`, `text-fg`, `border-border`…) are generated from
+ * them via `@theme inline`. Components use semantic tokens only, so a theme
+ * change never requires `dark:` variants in templates.
+ *
+ * Theme selection: `.dark` / `.light` on <html> (set by the theme store).
+ * Before the script runs, `prefers-color-scheme` applies the same tokens.
+ * Contrast targets WCAG 2.2 AA (text ≥ 4.5:1, UI boundaries ≥ 3:1); the dark
+ * theme avoids pure white for night use in the shack (NFR-UX-03).
+ */
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue",
+    Arial, sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas,
+    monospace;
+
+  /* Breakpoints: phone < sm ≤ tablet portrait < lg ≤ tablet landscape/desktop */
+  --breakpoint-sm: 40rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 80rem;
+
+  /* Minimum touch target: 44 × 44 px (NFR-UX-02, WCAG 2.5.8) */
+  --spacing-touch: 2.75rem;
+  --spacing-sidebar: 16rem;
+  --spacing-rail: 5rem;
+
+  --radius-card: 0.75rem;
+}
+
+@theme inline {
+  --color-canvas: var(--hrt-canvas);
+  --color-surface: var(--hrt-surface);
+  --color-surface-muted: var(--hrt-surface-muted);
+  --color-border: var(--hrt-border);
+  --color-border-strong: var(--hrt-border-strong);
+  --color-fg: var(--hrt-fg);
+  --color-fg-muted: var(--hrt-fg-muted);
+  --color-accent: var(--hrt-accent);
+  --color-accent-fg: var(--hrt-accent-fg);
+  --color-focus: var(--hrt-focus);
+  --color-ham: var(--hrt-ham);
+  --color-swl: var(--hrt-swl);
+  --color-shared: var(--hrt-shared);
+  --color-success: var(--hrt-success);
+  --color-warning: var(--hrt-warning);
+  --color-danger: var(--hrt-danger);
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --hrt-canvas: #f1f5f9;
+    --hrt-surface: #ffffff;
+    --hrt-surface-muted: #e8edf4;
+    --hrt-border: #cbd5e1;
+    --hrt-border-strong: #64748b;
+    --hrt-fg: #0f172a;
+    --hrt-fg-muted: #475569;
+    --hrt-accent: #1d4ed8;
+    --hrt-accent-fg: #ffffff;
+    --hrt-focus: #1d4ed8;
+    --hrt-ham: #b45309;
+    --hrt-swl: #0f766e;
+    --hrt-shared: #6d28d9;
+    --hrt-success: #15803d;
+    --hrt-warning: #a16207;
+    --hrt-danger: #b91c1c;
+  }
+
+  :root.dark {
+    color-scheme: dark;
+    --hrt-canvas: #0b1120;
+    --hrt-surface: #111a2e;
+    --hrt-surface-muted: #1a2540;
+    --hrt-border: #2a3754;
+    --hrt-border-strong: #7487a8;
+    --hrt-fg: #dbe3ef;
+    --hrt-fg-muted: #9fb0c8;
+    --hrt-accent: #8fb8ff;
+    --hrt-accent-fg: #0b1120;
+    --hrt-focus: #8fb8ff;
+    --hrt-ham: #f5b453;
+    --hrt-swl: #4fd1c0;
+    --hrt-shared: #b9a2ff;
+    --hrt-success: #5fd68a;
+    --hrt-warning: #f0c050;
+    --hrt-danger: #ff8a8a;
+  }
+
+  /* Same values as :root.dark, used before the theme store has run. */
+  @media (prefers-color-scheme: dark) {
+    :root:not(.light) {
+      color-scheme: dark;
+      --hrt-canvas: #0b1120;
+      --hrt-surface: #111a2e;
+      --hrt-surface-muted: #1a2540;
+      --hrt-border: #2a3754;
+      --hrt-border-strong: #7487a8;
+      --hrt-fg: #dbe3ef;
+      --hrt-fg-muted: #9fb0c8;
+      --hrt-accent: #8fb8ff;
+      --hrt-accent-fg: #0b1120;
+      --hrt-focus: #8fb8ff;
+      --hrt-ham: #f5b453;
+      --hrt-swl: #4fd1c0;
+      --hrt-shared: #b9a2ff;
+      --hrt-success: #5fd68a;
+      --hrt-warning: #f0c050;
+      --hrt-danger: #ff8a8a;
+    }
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-fg antialiased;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--hrt-focus);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
