@@ -49,14 +49,14 @@ presentation  →  application  →  domain
    (implementano le porte definite in application/domain)
 ```
 
-| Layer                      | Contenuto                                                                                                        | Può importare                                                                | Non può importare                                              |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| **domain**                 | Entità, value object, regole e calcoli puri, schemi Zod delle entità, errori di dominio.                         | `core/` domain, `zod`                                                        | Vue, Pinia, Dexie, `fetch`, `window`, `navigator`, `shared/ui` |
-| **application**            | Casi d'uso, porte (interfacce di repository, provider, clock, file, storage), DTO, orchestrazione import/export. | domain, `core/`                                                              | Vue, Dexie, infrastructure                                     |
-| **infrastructure**         | Adattatori Dexie (repository, migrazioni), file I/O, storage, Web Worker, service worker.                        | application (porte), domain, `dexie`                                         | presentation                                                   |
-| **providers**              | Adattatori verso fonti esterne (HTTP o parser di file importati).                                                | application (porte), domain                                                  | presentation, Dexie                                            |
-| **presentation**           | Componenti Vue, viste, composable, store Pinia, route.                                                           | application (casi d'uso, DTO), domain (tipi, formattatori puri), `shared/ui` | infrastructure, providers, Dexie                               |
-| **app** (composition root) | Bootstrap, creazione dei container, router, layout, registrazione PWA.                                           | tutto                                                                        | — (unico punto che conosce le implementazioni concrete)        |
+| Layer                      | Contenuto                                                                                                        | Può importare                                                                                       | Non può importare                                              |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| **domain**                 | Entità, value object, regole e calcoli puri, schemi Zod delle entità, errori di dominio.                         | `core/` domain, `zod`, `shared/types` ([ADR-0013](../adr/0013-core-domain-types-and-validation.md)) | Vue, Pinia, Dexie, `fetch`, `window`, `navigator`, `shared/ui` |
+| **application**            | Casi d'uso, porte (interfacce di repository, provider, clock, file, storage), DTO, orchestrazione import/export. | domain, `core/`                                                                                     | Vue, Dexie, infrastructure                                     |
+| **infrastructure**         | Adattatori Dexie (repository, migrazioni), file I/O, storage, Web Worker, service worker.                        | application (porte), domain, `dexie`                                                                | presentation                                                   |
+| **providers**              | Adattatori verso fonti esterne (HTTP o parser di file importati).                                                | application (porte), domain                                                                         | presentation, Dexie                                            |
+| **presentation**           | Componenti Vue, viste, composable, store Pinia, route.                                                           | application (casi d'uso, DTO), domain (tipi, formattatori puri), `shared/ui`                        | infrastructure, providers, Dexie                               |
+| **app** (composition root) | Bootstrap, creazione dei container, router, layout, registrazione PWA.                                           | tutto                                                                                               | — (unico punto che conosce le implementazioni concrete)        |
 
 **Applicazione automatica**: ESLint `no-restricted-imports` con pattern per percorso (es. vietato `dexie` fuori da `**/infrastructure/**`; vietato `**/infrastructure/**` da `**/presentation/**` e `**/domain/**`), più la regola locale `hrt/no-cross-boundary-relative-import` (`eslint/`): un import relativo non può uscire dal proprio modulo o dalla propria area (`app`, `shared`, `core`, `infrastructure`), quindi ogni attraversamento passa dall'alias `@/` dove valgono le regole di layer. Nessuna dipendenza aggiuntiva. Introdotto in M1, attivo per tutti i moduli e verificato da test negativi (`tests/integration/eslint-layer-rules.spec.ts`).
 
@@ -86,15 +86,15 @@ src/
     modules/                # contratto ModuleManifest, catalogo dei moduli e injection key
     composables/            # useOnline, useAsyncState, useMediaQuery…
     utils/                  # utility generiche senza dominio radio
-    types/                  # tipi comuni (Result, Brand…)
+    types/                  # tipi comuni: Result, Brand (M2, ADR-0013)
   core/                     # domain condiviso (puro)
     frequency/              # Hz, conversioni, band plan IARU R1
     locator/                # Maidenhead ↔ WGS84, distanza, azimut
-    time/                   # UTC ISO, minuti del giorno, giorni settimana
+    time/                   # UTC ISO, minuti del giorno, giorni settimana, formati compatti ADIF
     callsign/               # normalizzazione e validazione nominativi
     reports/                # RST, SINPO
-    units/                  # dB, lunghezze, potenze
-    validation/             # schemi Zod comuni (uuid, isoUtc, hz, lat/lon)
+    units/                  # dB, lunghezze, potenze (non ancora creato: vedi ROADMAP, M2 questioni aperte)
+    validation/             # schemi Zod comuni costruiti sulle funzioni di dominio (uuid, UTC, Hz, lat/lon, locator, nominativo, RST/SINPO, metadati)
   modules/
     dashboard/
     ham-logbook/
@@ -541,18 +541,18 @@ Verifica eseguita in M0 (2026-10-17) confrontando `PROJECT.md`, `CLAUDE.md` e il
 
 ### 13.3 Divergenze aperte dopo M1
 
-| #    | Stato                                                                                          | Classificazione                                                     |
-| ---- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| D-24 | Integrazione Git di Cloudflare attiva sul repository                                           | **Bloccante** per la chiusura formale di M1 (azione del maintainer) |
-| D-02 | Dipendenze dello stack ancora da aggiungere (`fake-indexeddb` M2, `satellite.js`/`leaflet` M8) | Non bloccante (pianificata)                                         |
-| D-09 | Fixture Raindrop anonimizzata                                                                  | Non bloccante (M9)                                                  |
-| D-11 | Domain `core/locator` prima dei calcolatori                                                    | Non bloccante (M2–M3)                                               |
-| D-12 | `qsl_records` unica fonte di verità                                                            | Non bloccante (M2–M10)                                              |
-| D-14 | EiBi/HFCC solo via HTTP: import manuale                                                        | Non bloccante (M5)                                                  |
-| D-15 | Fonte numerica di propagazione (ADR-0010)                                                      | Non bloccante (M12)                                                 |
-| D-16 | Mappe solo online                                                                              | Non bloccante (M8/M11)                                              |
-| D-17 | Toni CTCSS in decimi di Hz                                                                     | Non bloccante (M2)                                                  |
-| D-19 | Release `1.0.0`                                                                                | Non bloccante (M13)                                                 |
+| #    | Stato                                                                                          | Classificazione                                                              |
+| ---- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| D-24 | Integrazione Git di Cloudflare attiva sul repository                                           | **Bloccante** per la chiusura formale di M1 (azione del maintainer)          |
+| D-02 | Dipendenze dello stack ancora da aggiungere (`fake-indexeddb` M2, `satellite.js`/`leaflet` M8) | Non bloccante (pianificata)                                                  |
+| D-09 | Fixture Raindrop anonimizzata                                                                  | Non bloccante (M9)                                                           |
+| D-11 | Domain `core/locator` prima dei calcolatori                                                    | ✅ Risolta in M2, Blocco A (BL-M2-02): `core/locator` implementato e testato |
+| D-12 | `qsl_records` unica fonte di verità                                                            | Non bloccante (M2–M10)                                                       |
+| D-14 | EiBi/HFCC solo via HTTP: import manuale                                                        | Non bloccante (M5)                                                           |
+| D-15 | Fonte numerica di propagazione (ADR-0010)                                                      | Non bloccante (M12)                                                          |
+| D-16 | Mappe solo online                                                                              | Non bloccante (M8/M11)                                                       |
+| D-17 | Toni CTCSS in decimi di Hz                                                                     | Non bloccante (M2)                                                           |
+| D-19 | Release `1.0.0`                                                                                | Non bloccante (M13)                                                          |
 
 Tutte le altre divergenze (D-01, D-03…D-08, D-10, D-13, D-18, D-20…D-23) sono chiuse.
 

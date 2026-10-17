@@ -2,7 +2,7 @@
 
 | Campo                | Valore                                                                                                                                                                              |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stato                | M0 chiusa (2026-10-17) · **M1 approvata per la chiusura (2026-10-17), versione 0.1.0**: merge su `main`, deploy di produzione e tag `v0.1.0` da eseguire (§ 6.3)                    |
+| Stato                | M0 chiusa (2026-10-17) · **M1 approvata per la chiusura (2026-10-17), versione 0.1.0** (§ 6.3) · **M2 in corso**: Blocco A implementato, in attesa di approvazione (§ 4, M2)        |
 | Ultimo aggiornamento | 2026-10-17                                                                                                                                                                          |
 | Capacità             | 10–12 h/settimana (nominale 11 h)                                                                                                                                                   |
 | Stima M1–M13         | 171 h di base + 40 h di riserva (23,4 %) = **211 h** ≈ **19–23 settimane** dopo M0 (nominale: 21 settimane in totale, M0 inclusa)                                                   |
@@ -346,17 +346,38 @@ BL-M1-14…16 sono residui del Blocco A, registrati all'approvazione del Blocco 
 
 ### M2 (16 h)
 
-| ID       | Task                                                                                       | Req.         | Pri. | h   |
-| -------- | ------------------------------------------------------------------------------------------ | ------------ | ---- | --- |
-| BL-M2-01 | `core/frequency`: Hz, conversioni, band plan IARU R1 + test                                | FR-HAM-02    | M    | 2   |
-| BL-M2-02 | `core/locator`: Maidenhead ↔ WGS84, distanza, azimut + test                                | FR-RFC-09/10 | M    | 2   |
-| BL-M2-03 | `core/time`, `core/callsign`, `core/reports` (RST/SINPO) + test                            | FR-HAM-04    | M    | 1,5 |
-| BL-M2-04 | Schemi Zod comuni (`core/validation`)                                                      | —            | M    | 1   |
-| BL-M2-05 | Decisione ADR-0006/0009; `AppDatabase` v1, repository base, `UnitOfWork`, `fake-indexeddb` | —            | M    | 3   |
-| BL-M2-06 | Integrità referenziale e test di cascata                                                   | —            | M    | 1,5 |
-| BL-M2-07 | Pipeline di import generica (preview/commit/job)                                           | FR-GEN-03    | M    | 2   |
-| BL-M2-08 | Backup/restore JSON v1 + test round-trip                                                   | FR-SET-05/06 | M    | 2   |
-| BL-M2-09 | Impostazioni: storage, persistenza, profilo stazione (dati)                                | FR-SET-01/03 | M    | 1   |
+| ID       | Task                                                                                       | Req.         | Pri. | h   | Stato (2026-10-17)                                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------ | ------------ | ---- | --- | -------------------------------------------------------------------------------------------------------------------------- |
+| BL-M2-01 | `core/frequency`: Hz, conversioni, band plan IARU R1 + test                                | FR-HAM-02    | M    | 2   | ☑ implementato e testato, in attesa di approvazione; band plan fino a 13 cm (microonde escluse, BL-M2-10)                  |
+| BL-M2-02 | `core/locator`: Maidenhead ↔ WGS84, distanza, azimut + test                                | FR-RFC-09/10 | M    | 2   | ☑ implementato e testato, in attesa di approvazione                                                                        |
+| BL-M2-03 | `core/time`, `core/callsign`, `core/reports` (RST/SINPO) + test                            | FR-HAM-04    | M    | 1,5 | ☑ implementato e testato, in attesa di approvazione                                                                        |
+| BL-M2-04 | Schemi Zod comuni (`core/validation`)                                                      | —            | M    | 1   | ☑ implementato e testato, in attesa di approvazione ([ADR-0013](../adr/0013-core-domain-types-and-validation.md) proposto) |
+| BL-M2-05 | Decisione ADR-0006/0009; `AppDatabase` v1, repository base, `UnitOfWork`, `fake-indexeddb` | —            | M    | 3   | ◐ ADR-0006 e ADR-0009 accettati il 2026-10-17; codice nel Blocco B                                                         |
+| BL-M2-06 | Integrità referenziale e test di cascata                                                   | —            | M    | 1,5 | ☐ Blocco B                                                                                                                 |
+| BL-M2-07 | Pipeline di import generica (preview/commit/job)                                           | FR-GEN-03    | M    | 2   | ☐ Blocco C                                                                                                                 |
+| BL-M2-08 | Backup/restore JSON v1 + test round-trip                                                   | FR-SET-05/06 | M    | 2   | ☐ Blocco C                                                                                                                 |
+| BL-M2-09 | Impostazioni: storage, persistenza, profilo stazione (dati)                                | FR-SET-01/03 | M    | 1   | ☐ Blocco D                                                                                                                 |
+| BL-M2-10 | Band plan: bande da 9 cm in su, dopo verifica sul _VHF Managers Handbook_ IARU R1 corrente | FR-HAM-02    | S    | 0,5 | ☐ residuo del Blocco A, da pianificare (M3 o M6)                                                                           |
+
+#### Piano per blocchi
+
+| Blocco                         | Task               | Dipende da                                    | Criteri di accettazione                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------ | ------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A — Core Domain**            | BL-M2-01…04        | M1                                            | Domain puro (nessun import di Vue, Pinia, Dexie, browser API, verificato da ESLint e test negativi); test con valori di riferimento documentati per band plan (ogni limite HF/VHF/UHF), Maidenhead 4/6/8 e bordi, distanza/azimut, UTC e mezzanotte, nominativi, RST/SINPO; schemi Zod con tipi derivati; typecheck, lint, test, build, E2E verdi |
+| **B — Database & Repository**  | BL-M2-05, BL-M2-06 | A (schemi e tipi delle entità), ADR-0006/0009 | Schema v1 come DATABASE § 5; `fake-indexeddb` (dev); repository base e `UnitOfWork`; test CRUD, transazioni con rollback, cascate (DATABASE § 6), vincolo "un solo profilo predefinito"; allegati testati in ambiente `node`; ADR-0006/0009 rispettati                                                                                            |
+| **C — Import & Backup**        | BL-M2-07, BL-M2-08 | B                                             | Pipeline parse → validazione → anteprima → commit unico con `import_jobs`; import fallito senza dati parziali; backup JSON versionato (`schemaVersion`) e round-trip identico su tutte le tabelle v1; fixture in `tests/fixtures/backup/`                                                                                                         |
+| **D — Settings & Integration** | BL-M2-09, collaudo | B, C                                          | Porta `StorageInfo`, `navigator.storage.persist()` e stato/quota visibili in Impostazioni; profilo stazione persistito; preferiti della dashboard persistiti in `settings` (residuo BL-M1-10); checklist di completamento M2                                                                                                                      |
+
+#### Questioni aperte (da risolvere prima del codice che ne dipende)
+
+| #       | Questione                                                                                                                                                                                              | Blocco |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| Q-M2-01 | `core/units` (dB, lunghezze, potenze) è citato in ROADMAP § 1.1 e in D-11 come M2, ma nessun task del backlog M2 lo copre. Proposta: spostarlo in M6 (calcolatori), dove si usa; M3 non ne ha bisogno. | —      |
+| Q-M2-02 | Collocazione delle funzioni di migrazione pure, condivise fra `upgrade` Dexie e restore ([ADR-0006](../adr/0006-dexie-naming-and-migrations.md), conseguenze).                                         | B / C  |
+| Q-M2-03 | Gestione `versionchange`/`blocked` con notifica in UI: porta verso la presentation.                                                                                                                    | B      |
+| Q-M2-04 | Limite realistico del backup JSON su tablet (DATABASE § 8 propone 500 MB, non gestibile con un solo `JSON.parse`) ([ADR-0009](../adr/0009-attachments-in-indexeddb.md)).                               | C      |
+| Q-M2-05 | `src/app/container.ts` (ARCHITECTURE § 4, "da M2"): nasce nel Blocco B con i primi adattatori.                                                                                                         | B      |
+| Q-M2-06 | Persistenza dei preferiti della dashboard (BL-M1-10, "persistenza in M2") non ha un task esplicito: inclusa nel Blocco D insieme a BL-M2-09.                                                           | D      |
 
 ### M3 (22 h)
 

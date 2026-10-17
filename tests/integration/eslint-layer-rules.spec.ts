@@ -67,6 +67,26 @@ describe("layer rules: forbidden dependencies are reported", () => {
       'import { routes } from "@/modules/ham-logbook";\nexport const r = routes;\n',
     ],
     [
+      "core → vue",
+      "src/core/locator/maidenhead.ts",
+      'import { ref } from "vue";\nexport const value = ref(0);\n',
+    ],
+    [
+      "core → dexie",
+      "src/core/validation/schemas.ts",
+      'import Dexie from "dexie";\nexport const d = Dexie;\n',
+    ],
+    [
+      "core → shared/i18n",
+      "src/core/reports/sinpo.ts",
+      'import { t } from "@/shared/i18n";\nexport const label = t;\n',
+    ],
+    [
+      "core → browser global (fetch)",
+      "src/core/frequency/band-plan.ts",
+      'export const load = () => fetch("https://example.org");\n',
+    ],
+    [
       "application → dexie",
       "src/modules/swl-logbook/application/create-reception.ts",
       'import { liveQuery } from "dexie";\nexport const q = liveQuery;\n',
@@ -153,6 +173,11 @@ describe("layer rules: allowed dependencies are not reported", () => {
       "domain → zod and core",
       "src/modules/ham-logbook/domain/qso.ts",
       'import { z } from "zod";\nimport { hz } from "@/core/validation";\nexport const schema = z.object({ frequencyHz: hz });\n',
+    ],
+    [
+      "core → zod, other core modules and shared/types",
+      "src/core/validation/schemas.ts",
+      'import { z } from "zod";\nimport { parseLocator } from "@/core/locator";\nimport { ok, type Result } from "@/shared/types";\nexport const s = z.string();\nexport const p = parseLocator;\nexport const r: Result<number, never> = ok(1);\n',
     ],
     [
       "application → own domain",
