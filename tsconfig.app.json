@@ -5,11 +5,18 @@
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
 
+    /* Module resolution */
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
     /* Linting */
+    "noUncheckedIndexedAccess": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
+  "exclude": ["src/**/*.spec.ts", "src/**/__tests__/**"]
 }

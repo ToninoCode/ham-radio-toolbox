@@ -2,7 +2,7 @@
 
 PWA local-first e offline-first per radioamatori e SWL, pensata per tablet Android e utilizzabile da browser desktop: logbook HAM e SWL, explorer di frequenze, segnali, satelliti, APRS e ripetitori, calcolatori RF, propagazione, QSL, risorse e backup.
 
-> **Stato**: Milestone **M0 — Analisi e progettazione** chiusa il 2026-10-17; prossima milestone **M1** (fondamenta PWA). Le funzionalità non sono ancora implementate: `src/` contiene solo lo scaffold iniziale di Vite, che verrà sostituito in M1.
+> **Stato**: Milestone **M0 — Analisi e progettazione** chiusa il 2026-10-17. Milestone **M1 — Fondamenta PWA e dashboard** in corso: completato il Blocco A (tooling, qualità, test). Le funzionalità dei moduli non sono ancora implementate.
 
 ## Documentazione
 
@@ -27,12 +27,17 @@ Ambiente: Linux / WSL2, Node.js 22.
 
 ```bash
 npm install
-npm run dev       # dev server
-npm run build     # build di produzione
-npm run preview   # anteprima della build
+npm run dev            # dev server
+npm run build          # typecheck + build di produzione
+npm run preview        # anteprima della build
+npm run typecheck      # vue-tsc
+npm run lint           # ESLint (incluse le regole di separazione dei layer)
+npm run format         # Prettier (format:check per la sola verifica)
+npm run test           # Vitest (unit + integrazione)
+npm run test:e2e       # Playwright sulla build di produzione
 ```
 
-Gli script di typecheck, lint, format e test verranno aggiunti in M1 (vedi [CLAUDE.md](CLAUDE.md#comandi)).
+Per gli E2E su Linux/WSL2 servono il browser e le librerie di sistema: `npx playwright install chromium` e `sudo npx playwright install-deps chromium`. Elenco completo degli script in [CLAUDE.md](CLAUDE.md#comandi).
 
 ## Vincoli principali
 

@@ -133,19 +133,24 @@ Fonti di riferimento: EiBi, HFCC, SigIDWiki, CelesTrak, SatNOGS, HamQSL, QRZ, eQ
 
 ## Comandi
 
-> Gli script vengono definiti in M1. Se questa sezione diverge da `package.json`, aggiorna questo file.
+> Script definiti in M1 (Blocco A). Se questa sezione diverge da `package.json`, aggiorna questo file.
 
 ```bash
 npm install            # installazione dipendenze
 npm run dev            # dev server Vite
-npm run build          # build di produzione (include service worker)
+npm run build          # typecheck + build di produzione (include service worker da M1 Blocco C)
 npm run preview        # preview della build (necessaria per testare la PWA/offline)
-npm run typecheck      # vue-tsc --noEmit
-npm run lint           # ESLint
-npm run format         # Prettier
+npm run typecheck      # vue-tsc --build --force (tutti i progetti TS: app, test, config)
+npm run lint           # ESLint (regole di layer incluse), zero warning ammessi
+npm run lint:fix       # ESLint con correzione automatica
+npm run format         # Prettier (scrive)
+npm run format:check   # Prettier (solo verifica, usato in CI)
 npm run test           # Vitest (unit + integrazione)
-npm run test:e2e       # Playwright
+npm run test:watch     # Vitest in watch mode
+npm run test:e2e       # Playwright sulla build (vite preview, porta 4173)
 ```
+
+Prima esecuzione di Playwright su Linux/WSL2: `npx playwright install chromium` e, una tantum, `sudo npx playwright install-deps chromium` (librerie di sistema).
 
 Ambiente di sviluppo: Linux / WSL2. Fornisci sempre comandi eseguibili lì.
 
