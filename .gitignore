@@ -44,3 +44,6 @@ docs/references/
 # Generated exports
 backups/
 exports/
+
+# Cloudflare wrangler local state
+.wrangler/

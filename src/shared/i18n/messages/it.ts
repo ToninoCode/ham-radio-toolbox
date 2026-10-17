@@ -64,6 +64,7 @@ export const it = {
   },
   pwa: {
     region: "Notifiche dell'app",
+    updateRegion: "Aggiornamento dell'app",
     offlineReady: "App pronta per l'uso offline.",
     offlineReadyDetail:
       "Dashboard e pagine dei moduli si aprono anche senza connessione.",

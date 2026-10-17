@@ -45,6 +45,8 @@ watch(
       tabindex="-1"
       class="min-w-0 flex-1 px-4 pt-6 pb-28 focus:outline-none sm:px-6 sm:pb-10 lg:px-8"
     >
+      <!-- In-flow app notifications: they push the page down, never cover it. -->
+      <slot name="notifications" />
       <RouterView />
     </main>
   </div>

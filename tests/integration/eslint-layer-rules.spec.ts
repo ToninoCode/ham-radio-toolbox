@@ -222,3 +222,155 @@ describe("i18n rule: hardcoded UI text in templates", () => {
     expect(await bareStrings(template)).toEqual([]);
   });
 });
+
+async function ruleViolations(filePath: string, code: string, ruleId: string) {
+  const [result] = await eslint.lintText(code, { filePath });
+  if (!result) throw new Error(`No lint result for ${filePath}`);
+  expect(result.messages.filter((m) => m.fatal)).toEqual([]);
+  return result.messages.filter((m) => m.ruleId === ruleId);
+}
+
+/**
+ * BL-M1-16: module boundaries cannot be bypassed with relative paths, and the
+ * four cases required for M1 are rejected whatever the import form.
+ */
+describe("boundary rules: required negative cases", () => {
+  const RELATIVE = "hrt/no-cross-boundary-relative-import";
+
+  it.each([
+    [
+      "alias import of another module's internals",
+      "src/modules/swl-logbook/application/link-schedule.ts",
+      'import { x } from "@/modules/frequency-explorer/domain/schedule";\nexport const y = x;\n',
+      "no-restricted-imports",
+    ],
+    [
+      "relative import ../../../ into another module",
+      "src/modules/swl-logbook/presentation/views/ReceptionView.vue",
+      '<script setup lang="ts">\nimport { x } from "../../../frequency-explorer/domain/schedule";\nconst y = x;\n</script>\n\n<template>\n  <div :data-y="String(y)"></div>\n</template>\n',
+      RELATIVE,
+    ],
+    [
+      "relative import into another module's public index",
+      "src/modules/swl-logbook/application/link-schedule.ts",
+      'import { manifest } from "../../frequency-explorer";\nexport const m = manifest;\n',
+      RELATIVE,
+    ],
+    [
+      "relative re-export from another module",
+      "src/modules/swl-logbook/index.ts",
+      'export * from "../ham-logbook/domain/qso";\n',
+      RELATIVE,
+    ],
+    [
+      "dynamic relative import into another module",
+      "src/modules/dashboard/index.ts",
+      'export const load = () => import("../propagation/presentation/views/X.vue");\n',
+      RELATIVE,
+    ],
+    [
+      "relative import from a module into src/infrastructure",
+      "src/modules/ham-logbook/domain/qso.ts",
+      'import { db } from "../../../infrastructure/db/app-database";\nexport const d = db;\n',
+      RELATIVE,
+    ],
+    [
+      "domain → infrastructure (alias)",
+      "src/modules/ham-logbook/domain/qso.ts",
+      'import { db } from "@/infrastructure/db/app-database";\nexport const d = db;\n',
+      "no-restricted-imports",
+    ],
+    [
+      "domain → infrastructure (relative, same module)",
+      "src/modules/ham-logbook/domain/qso.ts",
+      'import { repo } from "../infrastructure/dexie-qso-repository";\nexport const r = repo;\n',
+      "no-restricted-imports",
+    ],
+    [
+      "presentation → Dexie",
+      "src/modules/ham-logbook/presentation/store.ts",
+      'import { liveQuery } from "dexie";\nexport const q = liveQuery;\n',
+      "no-restricted-imports",
+    ],
+    [
+      "relative import from src/shared into src/app",
+      "src/shared/ui/components/AppThing.vue",
+      '<script setup lang="ts">\nimport { moduleCatalog } from "../../../app/modules";\nconst c = moduleCatalog;\n</script>\n\n<template>\n  <div :data-c="String(c)"></div>\n</template>\n',
+      RELATIVE,
+    ],
+  ])("%s", async (_label, filePath, code, ruleId) => {
+    expect((await ruleViolations(filePath, code, ruleId)).length).toBe(1);
+  });
+
+  it.each([
+    [
+      "relative imports inside the same module, at any depth",
+      "src/modules/ham-logbook/presentation/views/QsoListView.vue",
+      '<script setup lang="ts">\nimport { schema } from "../../domain/qso";\nimport { useStore } from "../store";\nconst s = [schema, useStore];\n</script>\n\n<template>\n  <div :data-s="String(s)"></div>\n</template>\n',
+    ],
+    [
+      "relative imports inside src/shared",
+      "src/shared/modules/module-manifest.ts",
+      'import type { IconName } from "../ui/icons";\nexport type I = IconName;\n',
+    ],
+    [
+      "another module through its public API alias",
+      "src/modules/swl-logbook/application/link-schedule.ts",
+      'import { manifest } from "@/modules/frequency-explorer";\nexport const m = manifest;\n',
+    ],
+    [
+      "a spec file importing test support outside src/",
+      "src/app/router.spec.ts",
+      'import { createTestApp } from "../../tests/support/mount-app";\nexport const c = createTestApp;\n',
+    ],
+  ])("allows %s", async (_label, filePath, code) => {
+    expect(await ruleViolations(filePath, code, RELATIVE)).toEqual([]);
+    expect(
+      await ruleViolations(filePath, code, "no-restricted-imports"),
+    ).toEqual([]);
+  });
+});
+
+/**
+ * NFR-I18N-01 in scripts: literal text on user-facing properties is reported;
+ * technical strings (values, types, ids, CSS classes) are not.
+ */
+describe("i18n rule: hardcoded UI text in scripts", () => {
+  const VIEW = "src/modules/ham-logbook/presentation/views/QsoListView.vue";
+  const sfc = (script: string) =>
+    `<script setup lang="ts">\nimport { useI18n } from "@/shared/i18n";\nconst { t } = useI18n();\n${script}\n</script>\n\n<template>\n  <div :data-x="String(x)"></div>\n</template>\n`;
+
+  it.each([
+    ["an option label", 'const x = [{ value: "cw", label: "Telegrafia" }];'],
+    ["a title property", 'const x = { title: "Nuovo QSO" };'],
+    ["document.title", 'document.title = "Logbook";\nconst x = t;'],
+  ])("reports %s", async (_label, script) => {
+    const violations = await ruleViolations(
+      VIEW,
+      sfc(script),
+      "no-restricted-syntax",
+    );
+    expect(violations.length).toBe(1);
+  });
+
+  it("accepts catalog text and technical strings", async () => {
+    const script = [
+      'const x = [{ value: "cw", label: t("nav.home"), icon: "home" }];',
+      'const classes = "flex min-h-touch";',
+      'const type = "button";',
+      "void [classes, type];",
+    ].join("\n");
+    expect(
+      await ruleViolations(VIEW, sfc(script), "no-restricted-syntax"),
+    ).toEqual([]);
+  });
+
+  it("also applies to presentation TypeScript files", async () => {
+    const violations = await ruleViolations(
+      "src/modules/dashboard/presentation/options.ts",
+      'export const options = [{ value: "all", label: "Tutti" }];\n',
+      "no-restricted-syntax",
+    );
+    expect(violations.length).toBe(1);
+  });
+});

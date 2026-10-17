@@ -1,0 +1,181 @@
+# CI/CD — Ham Radio Toolbox (BL-M1-12, BL-M1-13; ADR-0011, ARCHITECTURE.md § 12).
+#
+# Required status checks (ruleset .github/rulesets/main-protection.json):
+# the job names "quality" and "e2e" are stable on purpose: do not rename them
+# without updating the ruleset.
+#
+# Deployment to Cloudflare Pages (Direct Upload) runs only when the repository
+# variable CF_PAGES_DEPLOY is "true" and the secrets CLOUDFLARE_API_TOKEN and
+# CLOUDFLARE_ACCOUNT_ID exist: setting them is the maintainer's explicit
+# consent to deploy.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  WRANGLER_SEND_METRICS: "false"
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Audit runtime dependencies (NFR-SEC-05)
+        run: npm audit --omit=dev --audit-level=high
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run test
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+
+      # The only production build of the pipeline: tested here and, on main,
+      # deployed as is by the deploy job.
+      - name: Build
+        run: npm run build
+        env:
+          HRT_BUILD_ID: ${{ github.sha }}
+      - name: Check build output (no 404.html, headers, no secrets)
+        run: npm run check:dist
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install Chromium and its Linux dependencies
+        run: npx playwright install --with-deps chromium
+
+      # With CI=true the config serves the existing dist/ (vite preview and
+      # wrangler pages dev) without rebuilding. Only the PWA update test
+      # (tests/e2e/pwa-update.spec.ts) builds two extra versions, with
+      # `vite build` into node_modules/.tmp/e2e-pwa-update on its own port:
+      # dist/ is never touched.
+      - name: E2E (app, PWA, offline, Cloudflare Pages emulation)
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+      - name: Upload tested build
+        if: success() && vars.CF_PAGES_DEPLOY == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  deploy:
+    name: deploy
+    needs: [quality, e2e]
+    # Production from main, previews from pull requests of this repository
+    # (forks never receive the secrets).
+    if: >-
+      vars.CF_PAGES_DEPLOY == 'true' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: ${{ github.event_name == 'push' && 'production' || 'preview' }}
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Download tested build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - run: npm run check:dist
+
+      # Branch names come from the pull request: never interpolate them into
+      # a command. Pages turns them into preview aliases (<branch>.<project>.pages.dev).
+      - name: Pages branch name
+        id: branch
+        env:
+          REF_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          name="$(printf '%s' "$REF_NAME" | tr -c 'A-Za-z0-9-' '-' | cut -c1-60)"
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.149.0"
+          command: >-
+            pages deploy dist
+            --project-name=ham-radio-toolbox
+            --branch=${{ steps.branch.outputs.name }}
+            --commit-hash=${{ github.sha }}
+            --commit-dirty=false
+
+      # Smoke test on the real deployment: headers, SPA fallback, CSP,
+      # service worker, installability and the expected build.
+      - name: Install Chromium and its Linux dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Verify the deployment
+        run: npm run test:deployment
+        env:
+          PAGES_URL: ${{ steps.deploy.outputs.deployment-url }}
+          EXPECTED_BUILD_ID: ${{ github.sha }}
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-deployment
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

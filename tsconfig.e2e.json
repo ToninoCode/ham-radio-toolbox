@@ -22,5 +22,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["tests/e2e/**/*.ts"]
+  "include": ["tests/e2e/**/*.ts", "tests/cloudflare/**/*.ts"]
 }

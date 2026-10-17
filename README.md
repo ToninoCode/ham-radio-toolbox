@@ -2,7 +2,7 @@
 
 PWA local-first e offline-first per radioamatori e SWL, pensata per tablet Android e utilizzabile da browser desktop: logbook HAM e SWL, explorer di frequenze, segnali, satelliti, APRS e ripetitori, calcolatori RF, propagazione, QSL, risorse e backup.
 
-> **Stato**: Milestone **M0 — Analisi e progettazione** chiusa il 2026-10-17. Milestone **M1 — Fondamenta PWA e dashboard** in corso: completati il Blocco A (tooling, qualità, test), il Blocco B (design system, i18n, routing, layout, dashboard) e il Blocco C (PWA installabile e offline). I 13 moduli funzionali sono navigabili ma mostrano la pagina "In sviluppo" con la milestone prevista.
+> **Stato**: Milestone **M0 — Analisi e progettazione** chiusa il 2026-10-17. Milestone **M1 — Fondamenta PWA e dashboard** in corso: completati il Blocco A (tooling, qualità, test), il Blocco B (design system, i18n, routing, layout, dashboard) il Blocco C (PWA installabile e offline) e il Blocco D (CI/CD, sicurezza HTTP, configurazione Cloudflare Pages; deploy da attivare). I 13 moduli funzionali sono navigabili ma mostrano la pagina "In sviluppo" con la milestone prevista.
 
 ## Documentazione
 
@@ -29,15 +29,22 @@ Ambiente: Linux / WSL2, Node.js 22.
 npm install
 npm run dev            # dev server
 npm run build          # typecheck + build di produzione
-npm run preview        # anteprima della build
+npm run check:dist     # controlli sulla build (404.html, header, segreti)
+npm run preview        # anteprima della build (vite preview)
+npm run preview:pages  # anteprima con l'emulatore di Cloudflare Pages (header e fallback SPA reali)
 npm run typecheck      # vue-tsc
-npm run lint           # ESLint (incluse le regole di separazione dei layer)
-npm run format         # Prettier (format:check per la sola verifica)
+npm run lint           # ESLint (regole di layer e confini fra moduli)
+npm run format         # Prettier (scrive)
+npm run format:check   # Prettier (solo verifica, come in CI)
 npm run test           # Vitest (unit + integrazione)
 npm run test:e2e       # Playwright sulla build di produzione
 ```
 
 Per gli E2E su Linux/WSL2 servono il browser e le librerie di sistema: `npx playwright install chromium` e `sudo npx playwright install-deps chromium`. Elenco completo degli script in [CLAUDE.md](CLAUDE.md#comandi).
+
+## CI e deploy
+
+Ogni pull request verso `main` e ogni push su `main` eseguono la pipeline GitHub Actions (`quality`: audit, typecheck, lint, format, unit; `e2e`: build, controlli sulla build, Playwright). Il deploy su Cloudflare Pages (Direct Upload, [ADR-0011](docs/adr/0011-static-hosting-and-routing.md)) parte solo dopo i test verdi e solo quando il maintainer lo abilita. Produzione da `main`, preview dalle PR. Configurazione, header HTTP e procedure operative in [ARCHITECTURE.md § 12](docs/architecture/ARCHITECTURE.md#12-qualità-test-e-ci).
 
 ## Installazione e uso offline
 

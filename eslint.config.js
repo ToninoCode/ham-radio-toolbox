@@ -5,6 +5,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import pluginVue from "eslint-plugin-vue";
 import globals from "globals";
 import tseslint from "typescript-eslint";
+import architecture from "./eslint/no-cross-boundary-relative-import.js";
 
 /*
  * Layer dependency rules (ADR-0004, ARCHITECTURE.md § 3).
@@ -98,6 +99,12 @@ const restrictBrowserGlobals = {
   ],
 };
 
+const UI_TEXT_PROPERTIES =
+  "/^(label|title|description|placeholder|ariaLabel|legend|message|text|tooltip|heading|caption)$/";
+const HAS_WORD = "/[A-Za-zÀ-ÿ]{2,}/";
+const UI_TEXT_MESSAGE =
+  "UI text must come from the typed i18n catalog: use t('…') (NFR-I18N-01, ADR-0008).";
+
 const DOMAIN_FILES = ["src/core/**", "src/modules/*/domain/**"];
 const APPLICATION_FILES = ["src/modules/*/application/**"];
 const PRESENTATION_FILES = ["src/modules/*/presentation/**"];
@@ -116,6 +123,7 @@ export default defineConfig(
     "test-results/",
     "blob-report/",
     "docs/references/",
+    ".wrangler/",
   ]),
 
   js.configs.recommended,
@@ -138,7 +146,7 @@ export default defineConfig(
   },
 
   {
-    files: ["*.{js,ts}", "scripts/**", "tests/**"],
+    files: ["*.{js,ts}", "eslint/**", "scripts/**", "tests/**"],
     languageOptions: { globals: globals.node },
   },
 
@@ -154,7 +162,38 @@ export default defineConfig(
     },
   },
 
+  {
+    // UI text in scripts (NFR-I18N-01): literal text assigned to the
+    // properties that carry user-facing text (labels of options, titles…).
+    // Deliberately narrow, to avoid false positives on identifiers, CSS
+    // classes or event names. Template text is covered by
+    // vue/no-bare-strings-in-template.
+    name: "i18n/script-strings",
+    files: ["src/**/*.vue", "src/**/presentation/**/*.ts", "src/app/**/*.ts"],
+    ignores: ["**/*.spec.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: `Property[key.name=${UI_TEXT_PROPERTIES}] > Literal[value=${HAS_WORD}]`,
+          message: UI_TEXT_MESSAGE,
+        },
+        {
+          selector: `AssignmentExpression[left.property.name=/^(title|textContent|innerText)$/] > Literal.right[value=${HAS_WORD}]`,
+          message: UI_TEXT_MESSAGE,
+        },
+      ],
+    },
+  },
+
   // --- Layer rules (order matters: later objects override earlier ones) ---
+
+  {
+    name: "layers/relative-imports",
+    files: ["src/**"],
+    plugins: { hrt: architecture },
+    rules: { "hrt/no-cross-boundary-relative-import": "error" },
+  },
 
   {
     name: "layers/default",

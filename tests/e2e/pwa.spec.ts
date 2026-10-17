@@ -163,3 +163,74 @@ test.describe("offline", () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe("offline-ready notice on small screens", () => {
+  for (const viewport of [
+    { width: 360, height: 640 },
+    { width: 390, height: 844 },
+    { width: 640, height: 360 },
+  ]) {
+    test(`does not cover any control at ${viewport.width}×${viewport.height}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      await page.goto("/");
+      await waitForServiceWorker(page);
+      const notice = page.getByTestId("pwa-offline-ready");
+      await expect(notice).toBeVisible();
+
+      // In the page flow, not an overlay.
+      expect(
+        await notice.evaluate((el) => {
+          for (let node: Element | null = el; node; node = node.parentElement) {
+            const position = getComputedStyle(node).position;
+            if (position === "fixed" || position === "absolute")
+              return position;
+          }
+          return "static";
+        }),
+      ).toBe("static");
+
+      // No visible control is hidden by the notice, wherever the page is scrolled.
+      for (const scroll of ["top", "bottom"] as const) {
+        await page.evaluate((to) => {
+          window.scrollTo(0, to === "top" ? 0 : document.body.scrollHeight);
+        }, scroll);
+        const covered = await page.evaluate(() => {
+          const notice = document.querySelector(
+            '[data-testid="pwa-offline-ready"]',
+          );
+          const controls = document.querySelectorAll<HTMLElement>(
+            "#main-content a, #main-content button, #main-content label, [data-testid=bottom-nav] a, [data-testid=bottom-nav] button",
+          );
+          const hits: string[] = [];
+          for (const control of controls) {
+            if (notice?.contains(control)) continue;
+            const box = control.getBoundingClientRect();
+            if (box.width < 4 || box.height < 4) continue;
+            const x = box.left + box.width / 2;
+            const y = box.top + box.height / 2;
+            if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
+            const top = document.elementFromPoint(x, y);
+            if (top && notice?.contains(top)) {
+              hits.push(
+                control.textContent?.trim() || control.outerHTML.slice(0, 60),
+              );
+            }
+          }
+          return hits;
+        });
+        expect(covered, `controls covered (${scroll})`).toEqual([]);
+      }
+
+      // Dashboard controls stay usable while the notice is shown.
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page
+        .getByRole("button", { name: "Aggiungi Logbook HAM ai preferiti" })
+        .click();
+      await expect(
+        page.getByTestId("favorites").locator('[data-module="ham-logbook"]'),
+      ).toBeVisible();
+    });
+  }
+});

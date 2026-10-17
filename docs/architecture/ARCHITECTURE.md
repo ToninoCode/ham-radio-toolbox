@@ -58,7 +58,7 @@ presentation  →  application  →  domain
 | **presentation**           | Componenti Vue, viste, composable, store Pinia, route.                                                           | application (casi d'uso, DTO), domain (tipi, formattatori puri), `shared/ui` | infrastructure, providers, Dexie                               |
 | **app** (composition root) | Bootstrap, creazione dei container, router, layout, registrazione PWA.                                           | tutto                                                                        | — (unico punto che conosce le implementazioni concrete)        |
 
-**Applicazione automatica**: ESLint `no-restricted-imports` con pattern per percorso (es. vietato `dexie` fuori da `**/infrastructure/**`; vietato `**/infrastructure/**` da `**/presentation/**` e `**/domain/**`). Nessuna dipendenza aggiuntiva necessaria. Introdotto in M1, attivo per tutti i moduli.
+**Applicazione automatica**: ESLint `no-restricted-imports` con pattern per percorso (es. vietato `dexie` fuori da `**/infrastructure/**`; vietato `**/infrastructure/**` da `**/presentation/**` e `**/domain/**`), più la regola locale `hrt/no-cross-boundary-relative-import` (`eslint/`): un import relativo non può uscire dal proprio modulo o dalla propria area (`app`, `shared`, `core`, `infrastructure`), quindi ogni attraversamento passa dall'alias `@/` dove valgono le regole di layer. Nessuna dipendenza aggiuntiva. Introdotto in M1, attivo per tutti i moduli e verificato da test negativi (`tests/integration/eslint-layer-rules.spec.ts`).
 
 **Comunicazione fra moduli**: un modulo usa un altro modulo solo tramite il suo `index.ts` pubblico (API dell'application layer). Esempio: il Logbook SWL chiede al Frequency Explorer `findScheduledAt(frequencyHz, at)` tramite una porta, mai leggendo direttamente la tabella `broadcast_schedules`.
 
@@ -123,8 +123,11 @@ src/
 public/
   _headers                  # header HTTP per Cloudflare Pages (CSP, sicurezza) — da M1
   favicon.svg, icons/       # icone PWA generate da scripts/generate-pwa-icons.mjs (npm run icons)
-scripts/                    # script di sviluppo (generazione icone)
+scripts/                    # script di sviluppo (icone PWA, controlli sulla build)
+eslint/                     # regole ESLint locali (confini fra moduli, BL-M1-16)
+.github/                    # workflow CI/CD, Dependabot, ruleset di main
 tests/
+  cloudflare/               # comportamento dell'hosting: header, fallback SPA, CSP (wrangler pages dev o URL reale)
   unit/                     # opzionale: i test unitari stanno accanto ai sorgenti (*.spec.ts)
   integration/              # repository Dexie con fake-indexeddb
   e2e/                      # Playwright
@@ -302,7 +305,7 @@ Implementazione con `vite-plugin-pwa` (Workbox, modalità `generateSW`; `injectM
 - **Aggiornamento**: `registerType: 'prompt'`; quando c'è un nuovo SW in attesa compare un toast "Nuova versione disponibile — Aggiorna" (FR-DSH-08). Nessun `skipWaiting` silenzioso, per non cambiare versione durante l'inserimento di un QSO.
 - **Manifest**: nome, `short_name`, icone (192, 512, maskable), `display: standalone`, `orientation: any`, `theme_color`/`background_color` coerenti con il tema scuro, `lang: it`.
 - **Persistenza**: al primo avvio dopo l'installazione (o alla prima scrittura) `navigator.storage.persist()`; stato visibile in Impostazioni.
-- **Cache HTTP**: Cloudflare Pages serve gli asset con `Cache-Control: public, max-age=0, must-revalidate` ed `ETag`, quindi `sw.js` e `index.html` vengono sempre rivalidati e gli aggiornamenti sono rilevati senza regole custom. Gli asset con hash restano comunque nel precache del SW.
+- **Cache HTTP**: Cloudflare Pages serve per default `Cache-Control: public, max-age=0, must-revalidate` ed `ETag`, quindi `index.html` e le route vengono sempre rivalidati. `public/_headers` aggiunge `no-cache` esplicito per `sw.js` e `immutable` per gli asset con hash (`/assets/*`, `/workbox-*.js`); dettaglio in § 12.1. Gli asset con hash restano comunque nel precache del SW.
 - **Stato online**: composable `useOnline()` basato su eventi `online/offline` e sull'esito delle ultime richieste ai provider.
 
 ### 8.1 Implementazione (M1, BL-M1-11)
@@ -321,13 +324,13 @@ Configurazione in `vite.config.ts`, registrazione in `src/app/pwa/`. Nessun serv
 | Controllo aggiornamenti | All'avvio (registrazione) e ogni 60 minuti se online (`registration.update()`), per le sessioni lunghe su tablet                                                                                                                  |
 | Identificativo build    | `<meta name="build-id">` da `HRT_BUILD_ID` (in CI lo SHA del commit, in locale `local`), per diagnostica e test                                                                                                                   |
 
-**Flusso di aggiornamento** (`PwaUpdatePrompt.vue`, notifiche non modali in una regione `aria-live`):
+**Flusso di aggiornamento** (`PwaUpdatePrompt.vue`, avviso flottante non modale in una regione `aria-live`; gli avvisi informativi e di errore sono in `PwaStatus.vue`, **nel flusso della pagina** sopra il contenuto, così non coprono mai i controlli sugli schermi piccoli):
 
 1. il SW nuovo si installa in background e resta _in attesa_; compare "Nuova versione disponibile" con **Aggiorna** e **Più tardi**;
 2. _Più tardi_ nasconde l'avviso: la versione in uso non cambia, e l'avviso ricompare al successivo avvio finché il SW è in attesa;
 3. _Aggiorna_ attiva il SW in attesa e ricarica la pagina sulla nuova versione;
-4. al primo avvio compare "App pronta per l'uso offline" (si chiude da sola dopo 10 s o con il pulsante);
-5. errori di registrazione o di aggiornamento compaiono come avviso (`role="alert"`) chiudibile.
+4. al primo avvio compare, in testa alla pagina, "App pronta per l'uso offline" (si chiude da sola dopo 10 s o con il pulsante);
+5. errori di registrazione o di aggiornamento compaiono in testa alla pagina come avviso (`role="alert"`) chiudibile.
 
 **Dati**: il service worker gestisce solo le proprie cache (Cache Storage, prefisso `workbox-precache`). Non legge né modifica IndexedDB e non memorizza risposte di terzi, credenziali o contenuti privati. Aggiornare l'app non tocca i dati dell'utente; le migrazioni di schema restano compito di Dexie (M2).
 
@@ -395,15 +398,15 @@ Decisione **accettata** ([ADR-0008](../adr/0008-i18n-approach.md)): catalogo tip
 
 ## 11. Sicurezza
 
-| Minaccia                                               | Contromisura                                                                                                                                                                                                                                                                                |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| XSS da file importati (HTML Raindrop, ADIF, CSV, JSON) | Parsing con `DOMParser` (documento inerte) o parser testuali; nessun `v-html`; validazione Zod; solo URL `http(s)`.                                                                                                                                                                         |
-| File malevoli/enormi (DoS locale)                      | Limiti di dimensione per tipo di import, parsing in streaming/worker, limite al numero di errori riportati.                                                                                                                                                                                 |
-| Esposizione di segreti                                 | Nessuna chiave nel bundle; variabili `VITE_*` limitate a configurazione pubblica; controllo in CI (grep di pattern di chiavi).                                                                                                                                                              |
-| Injection via CSV export (formula injection)           | Prefisso `'` per celle che iniziano con `= + - @` nell'export CSV.                                                                                                                                                                                                                          |
-| Script/iframe di terzi                                 | CSP: `default-src 'self'`; `img-src 'self' data: blob: https://tile.openstreetmap.org https://www.hamqsl.com`; `connect-src 'self'` + fonti native approvate; nessun `unsafe-eval`. Header impostati in `public/_headers` (Cloudflare Pages, max 100 regole, max 2 000 caratteri per riga). |
-| Supply chain                                           | Lockfile versionato, `npm ci`, `npm audit` in CI, dipendenze minime, Dependabot.                                                                                                                                                                                                            |
-| Privacy                                                | Nessuna telemetria; nessun caricamento automatico di risorse remote da dati importati (es. copertine Raindrop).                                                                                                                                                                             |
+| Minaccia                                               | Contromisura                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| XSS da file importati (HTML Raindrop, ADIF, CSV, JSON) | Parsing con `DOMParser` (documento inerte) o parser testuali; nessun `v-html`; validazione Zod; solo URL `http(s)`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| File malevoli/enormi (DoS locale)                      | Limiti di dimensione per tipo di import, parsing in streaming/worker, limite al numero di errori riportati.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Esposizione di segreti                                 | Nessuna chiave nel bundle; variabili `VITE_*` limitate a configurazione pubblica; `npm run check:dist` in CI cerca pattern di chiavi e credenziali nei file pubblicati.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Injection via CSV export (formula injection)           | Prefisso `'` per celle che iniziano con `= + - @` nell'export CSV.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Script/iframe di terzi                                 | CSP in `public/_headers`. **M1**: `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`, senza `unsafe-inline`/`unsafe-eval` (verificata senza violazioni sull'emulatore Pages). Le eccezioni per tile OSM e HamQSL (`img-src`) e per le fonti native approvate (`connect-src`) si aggiungono con la funzione che le usa (M5, M8, M12). Header su Cloudflare Pages: max 100 regole, max 2 000 caratteri per riga. |
+| Supply chain                                           | Lockfile versionato, `npm ci`, `npm audit --omit=dev --audit-level=high` in CI, action GitHub fissate per SHA, dipendenze minime, Dependabot.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Privacy                                                | Nessuna telemetria; nessun caricamento automatico di risorse remote da dati importati (es. copertine Raindrop).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ---
 
@@ -419,28 +422,73 @@ Decisione **accettata** ([ADR-0008](../adr/0008-i18n-approach.md)): catalogo tip
 | E2E          | Playwright (Chromium desktop + emulazione tablet Android)                                  | Flussi principali, offline (`context.setOffline(true)`), installabilità, accessibilità (axe) |
 | Manuale      | Checklist su tablet Android reale                                                          | Installazione, offline, persistenza, prestazioni                                             |
 
-Pipeline GitHub Actions (introdotta in M1):
+Pipeline GitHub Actions (`.github/workflows/ci.yml`, introdotta in M1), su pull request verso `main`, push su `main` e avvio manuale. Permessi `contents: read`, action fissate per SHA, Node.js da `.nvmrc` (22 LTS), cache npm, timeout per job.
 
-1. `npm ci`
-2. `npm run typecheck` · `npm run lint` · `npm run format -- --check`
-3. `npm run test -- --coverage` (soglie su domain critico)
-4. `npm run build`
-5. `npm run test:e2e` sulla build (`vite preview`)
-6. Deploy su **Cloudflare Pages** (Direct Upload) con `cloudflare/wrangler-action@v4` → `pages deploy dist --project-name=ham-radio-toolbox`, solo da `main` e solo se tutti i passi sono verdi. Prima del deploy, un controllo fa fallire la pipeline se `dist/404.html` esiste, perché disattiverebbe il fallback SPA.
+| Job       | Passi                                                                                                                                                                                                                                                                                                         | Timeout |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `quality` | `npm ci` · `npm audit --omit=dev --audit-level=high` · `npm run typecheck` · `npm run lint` · `npm run format:check` · `npm run test`                                                                                                                                                                         | 15 min  |
+| `e2e`     | `npm ci` · `npm run build` (unica build, `HRT_BUILD_ID` = SHA) · `npm run check:dist` (nessun `404.html`, `_headers`/SW/manifest presenti, nessun segreto) · Chromium con dipendenze Linux (cache) · `npm run test:e2e` sulla build già prodotta · report Playwright come artifact solo in caso di fallimento | 25 min  |
+| `deploy`  | Solo con la variabile di repository `CF_PAGES_DEPLOY=true`, dopo `quality` ed `e2e` verdi. Scarica la build testata, `wrangler pages deploy` (Direct Upload), poi `npm run test:deployment` sull'URL reale. Produzione da `main`, preview dalle PR del repository (mai dai fork)                              | 15 min  |
+
+- **Nomi dei job stabili**: `quality` ed `e2e` sono i _required status checks_ del ruleset di `main`; rinominarli richiede di aggiornare `.github/rulesets/main-protection.json`.
+- **Test PWA con due versioni**: `tests/e2e/pwa-update.spec.ts` esegue due `vite build` (`HRT_BUILD_ID` v1 e v2) in `node_modules/.tmp/e2e-pwa-update` e li serve su una porta dedicata (4174). La build di `dist/` testata e distribuita non viene mai ricostruita né toccata. Il test gira una sola volta, nel progetto `desktop-chromium`.
+- **Emulazione Cloudflare Pages**: il progetto Playwright `cloudflare-pages` gira su `wrangler pages dev dist` (emulatore ufficiale, applica `_headers` e il fallback SPA come la piattaforma), perché `vite preview` ignora `_headers`. Dopo il deploy la stessa suite gira sull'URL reale.
+- **Copertura**: `npm run test -- --coverage` con soglie sul domain critico entra in CI con M2, quando esiste il primo domain critico (NFR-MNT-03).
+- **Dependabot** (`.github/dependabot.yml`): aggiornamenti settimanali raggruppati di npm e GitHub Actions, soggetti alla stessa CI.
 
 ### 12.1 Deployment (Cloudflare Pages)
 
-Configurazione verificata sulla documentazione ufficiale il 2026-10-17 ([ADR-0011](../adr/0011-static-hosting-and-routing.md)); la prova con un deploy reale è un criterio di M1.
+Configurazione verificata sulla documentazione ufficiale il 2026-10-17 ([ADR-0011](../adr/0011-static-hosting-and-routing.md)) e con `wrangler pages dev` in M1. La prova con un deploy reale è un criterio di M1.
 
-| Voce                  | Valore                                                                                                         |
-| --------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Progetto              | `ham-radio-toolbox`, modalità Direct Upload                                                                    |
-| Output                | `dist/` (build Vite)                                                                                           |
-| Fallback SPA          | Automatico in assenza di `404.html` di primo livello                                                           |
-| Header                | `public/_headers` → `dist/_headers`                                                                            |
-| Secret GitHub Actions | `CLOUDFLARE_API_TOKEN` (permesso _Account › Cloudflare Pages › Edit_), `CLOUDFLARE_ACCOUNT_ID`; mai nel bundle |
-| Dominio               | `*.pages.dev` (dominio personalizzato opzionale)                                                               |
-| Limiti rilevanti      | 20 000 file, 25 MiB per asset (piano gratuito)                                                                 |
+| Voce                      | Valore                                                                                                                                        |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Progetto                  | `ham-radio-toolbox`, modalità **Direct Upload** (ADR-0011): la build avviene in GitHub Actions, non sui server Cloudflare                     |
+| Branch di produzione      | `main` → `https://ham-radio-toolbox.pages.dev`                                                                                                |
+| Preview                   | Branch delle PR → `https://<branch>.ham-radio-toolbox.pages.dev` (nome normalizzato: caratteri diversi da `A-Za-z0-9-` diventano `-`)         |
+| Comando di build / output | `npm run build` / `dist/`                                                                                                                     |
+| Fallback SPA              | Automatico in assenza di `404.html` di primo livello (controllato da `npm run check:dist` e dai test)                                         |
+| Header                    | `public/_headers` → `dist/_headers` (vedi tabella seguente)                                                                                   |
+| Consenso al deploy        | Variabile di repository `CF_PAGES_DEPLOY=true`; ambienti GitHub `production` e `preview` (vi si possono aggiungere revisori obbligatori)      |
+| Secret GitHub Actions     | `CLOUDFLARE_API_TOKEN` (permesso _Account › Cloudflare Pages › Edit_), `CLOUDFLARE_ACCOUNT_ID`; mai nel bundle                                |
+| Verifica dopo il deploy   | `npm run test:deployment` con `PAGES_URL` ed `EXPECTED_BUILD_ID`: header, routing SPA, CSP senza violazioni, SW, installabilità, build attesa |
+| Dominio                   | `*.pages.dev` (HTTPS automatico; dominio personalizzato opzionale)                                                                            |
+| Limiti rilevanti          | 20 000 file, 25 MiB per asset (piano gratuito)                                                                                                |
+
+**Header HTTP** (`public/_headers`; le regole che corrispondono allo stesso percorso si sommano, per questo `Cache-Control` compare solo nelle regole specifiche):
+
+| Percorso                            | Header                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/*`                                | `Content-Security-Policy` (vedi § 11), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Cross-Origin-Opener-Policy: same-origin`, `Permissions-Policy` che nega tutte le funzioni non usate (fotocamera, microfono, geolocalizzazione, USB, seriale, Bluetooth, HID, pagamenti…) |
+| `/assets/*`, `/workbox-*.js`        | `Cache-Control: public, max-age=31536000, immutable` (nome con hash)                                                                                                                                                                                                                                                                             |
+| `/sw.js`                            | `Cache-Control: no-cache` (sempre rivalidato: gli aggiornamenti vengono rilevati)                                                                                                                                                                                                                                                                |
+| Altri (`/`, route, manifest, icone) | Default di Pages: `public, max-age=0, must-revalidate` con `ETag`                                                                                                                                                                                                                                                                                |
+
+Limite noto: Pages serve `index.html` (200) anche per un asset inesistente sotto `/assets/` (per esempio un chunk di una build precedente richiesto da una pagina rimasta aperta), con l'header `immutable` della regola. L'URL con hash non torna mai valido, quindi l'effetto è limitato. Il service worker serve comunque dal precache i chunk della versione in uso.
+
+### 12.2 Procedure operative (maintainer)
+
+Operazioni su GitHub e Cloudflare, da eseguire manualmente nell'ordine indicato. Nessuna è automatizzata dal repository.
+
+**A. Primo passaggio della CI su GitHub**
+
+1. Push del branch `feature/m1-pwa-foundation` e apertura di una PR verso `main`.
+2. In _Actions_ verificare che i job `quality` ed `e2e` siano verdi. Il job `deploy` risulta _skipped_ finché `CF_PAGES_DEPLOY` non vale `true`.
+
+**B. Progetto Cloudflare Pages (Direct Upload)**
+
+1. Dashboard Cloudflare → _Workers & Pages_ → _Create_ → _Pages_ → _Upload assets_ (Direct Upload), nome `ham-radio-toolbox`, branch di produzione `main`. In alternativa: `npx wrangler pages project create ham-radio-toolbox --production-branch=main` (richiede `wrangler login`). **Non** scegliere _Connect to Git_: è l'alternativa scartata da ADR-0011.
+2. _My Profile_ → _API Tokens_ → _Create Token_ → _Custom token_ con il solo permesso _Account › Cloudflare Pages › Edit_, limitato all'account. Annotare anche l'_Account ID_ (barra laterale della dashboard).
+3. GitHub → _Settings_ → _Secrets and variables_ → _Actions_: secret `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`. Facoltativo: _Environments_ → `production` con revisore obbligatorio (approvazione manuale di ogni deploy di produzione).
+4. Variabile di repository `CF_PAGES_DEPLOY` = `true`: da questo momento le PR del repository producono una preview e i push su `main` la produzione.
+5. Verificare nel log del job `deploy` che `test:deployment` sia verde, poi aprire l'URL e controllare a mano una route profonda (es. `/ham-logbook`) e gli header (Strumenti per sviluppatori → _Network_).
+
+**C. Protezione di `main` (BL-M1-14), dopo A**
+
+1. GitHub → _Settings_ → _Rules_ → _Rulesets_ → _New ruleset_ → _Import a ruleset_ → `.github/rulesets/main-protection.json`.
+2. Effetto: PR obbligatoria (0 approvazioni richieste: progetto con un solo maintainer, le revisioni restano possibili), conversazioni risolte, check `quality` ed `e2e` superati e branch aggiornato, divieto di force push e di cancellazione, nessun bypass (neppure per gli amministratori), merge _squash_ o _rebase_.
+3. I check compaiono nel selettore solo dopo almeno un'esecuzione del workflow (passo A). L'`integration_id` 15368 è l'app _GitHub Actions_.
+4. Piano: il repository è **pubblico**, quindi i ruleset sono disponibili nel piano gratuito. Su un repository privato servirebbero GitHub Pro o Team, oppure la classica _branch protection_ con le stesse regole.
+5. Con la protezione attiva il maintainer lavora solo tramite PR, anche per le correzioni minori.
 
 ---
 

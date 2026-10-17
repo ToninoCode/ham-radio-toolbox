@@ -72,11 +72,15 @@ src/
     files/             # lettura/salvataggio file, hashing, limiti
     workers/           # Web Worker (parsing grandi file, passaggi satellitari)
 public/
-  _headers             # header HTTP Cloudflare Pages (CSP, sicurezza) — da M1
+  _headers             # header HTTP Cloudflare Pages (CSP, sicurezza, cache)
   favicon.svg, icons/  # icone PWA (generate con npm run icons)
-scripts/               # script di sviluppo
+scripts/               # script di sviluppo (icone, controlli sulla build)
+eslint/                # regole ESLint locali (confini fra moduli)
+.github/               # workflow CI/CD, Dependabot, ruleset di main
 tests/
-  integration/         # repository Dexie con fake-indexeddb
+  integration/         # repository Dexie con fake-indexeddb, test delle regole ESLint
+  cloudflare/          # hosting: header, fallback SPA, CSP (emulatore Pages o deploy reale)
+  support/             # setup Vitest e helper di mount
   e2e/                 # Playwright
   fixtures/            # file di test ridotti e anonimizzati
 docs/                  # struttura decisa in ADR-0002
@@ -135,23 +139,28 @@ Fonti di riferimento: EiBi, HFCC, SigIDWiki, CelesTrak, SatNOGS, HamQSL, QRZ, eQ
 
 ## Comandi
 
-> Script definiti in M1 (Blocco A). Se questa sezione diverge da `package.json`, aggiorna questo file.
+> Script definiti in M1. Se questa sezione diverge da `package.json`, aggiorna questo file.
 
 ```bash
-npm install            # installazione dipendenze
-npm run dev            # dev server Vite
-npm run build          # typecheck + build di produzione (include service worker da M1 Blocco C)
-npm run preview        # preview della build (necessaria per testare la PWA/offline)
-npm run typecheck      # vue-tsc --build --force (tutti i progetti TS: app, test, config)
-npm run lint           # ESLint (regole di layer incluse), zero warning ammessi
+npm install            # installazione dipendenze (in CI: npm ci)
+npm run dev            # dev server Vite (senza service worker)
+npm run build          # typecheck + build di produzione con service worker
+npm run check:dist     # controlli sulla build: niente 404.html, _headers/SW/manifest presenti, nessun segreto
+npm run preview        # preview della build con vite preview (porta 4173; non applica public/_headers)
+npm run preview:pages  # build servita da wrangler pages dev, emulatore di Cloudflare Pages (_headers, fallback SPA)
+npm run typecheck      # vue-tsc --build --force (tutti i progetti TS: app, test, config, e2e)
+npm run lint           # ESLint (regole di layer e di confine fra moduli), zero warning ammessi
 npm run lint:fix       # ESLint con correzione automatica
 npm run format         # Prettier (scrive)
 npm run format:check   # Prettier (solo verifica, usato in CI)
 npm run test           # Vitest (unit + integrazione)
 npm run test:watch     # Vitest in watch mode
-npm run test:e2e       # Playwright sulla build (vite preview, porta 4173; il test di aggiornamento PWA usa anche la 4174)
+npm run test:e2e       # Playwright: app su vite preview (4173), hosting su wrangler pages dev (8788), aggiornamento PWA su 4174
+npm run test:deployment # Playwright sul deploy reale: PAGES_URL=<url> [EXPECTED_BUILD_ID=<sha>]
 npm run icons          # rigenera le icone PWA in public/ (da versionare)
 ```
+
+CI/CD in `.github/workflows/ci.yml` (job `quality`, `e2e`, `deploy`); procedure su GitHub e Cloudflare in `docs/architecture/ARCHITECTURE.md` § 12.2. Il deploy avviene solo con la variabile di repository `CF_PAGES_DEPLOY=true`.
 
 Prima esecuzione di Playwright su Linux/WSL2: `npx playwright install chromium` e, una tantum, `sudo npx playwright install-deps chromium` (librerie di sistema).
 

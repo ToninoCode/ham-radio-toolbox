@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { nextTick, ref } from "vue";
+import PwaStatus from "./PwaStatus.vue";
 import PwaUpdatePrompt from "./PwaUpdatePrompt.vue";
 import {
   UPDATE_CHECK_INTERVAL_MS,
@@ -119,10 +120,10 @@ function fakePwa(): PwaUpdate {
 }
 
 describe("PwaUpdatePrompt", () => {
-  it("renders nothing visible while there is nothing to report", () => {
+  it("renders nothing visible while no update is waiting", () => {
     const wrapper = mount(PwaUpdatePrompt, { props: { pwa: fakePwa() } });
     const region = wrapper.find('[data-testid="pwa-notifications"]');
-    expect(region.attributes("aria-label")).toBe("Notifiche dell'app");
+    expect(region.attributes("aria-label")).toBe("Aggiornamento dell'app");
     expect(region.find("[aria-live=polite]").text()).toBe("");
   });
 
@@ -158,11 +159,23 @@ describe("PwaUpdatePrompt", () => {
     );
     expect(buttons[1]!.text()).toBe("Aggiornamento in corso…");
   });
+});
+
+describe("PwaStatus", () => {
+  it("takes no space while there is nothing to report", () => {
+    const wrapper = mount(PwaStatus, { props: { pwa: fakePwa() } });
+    const region = wrapper.find('[data-testid="pwa-status"]');
+    expect(region.attributes("aria-label")).toBe("Notifiche dell'app");
+    expect(region.text()).toBe("");
+    expect(
+      region.classes().some((c) => /^(fixed|absolute|sticky)$/.test(c)),
+    ).toBe(false);
+  });
 
   it("announces offline readiness and hides it after a while", async () => {
     vi.useFakeTimers();
     const pwa = fakePwa();
-    const wrapper = mount(PwaUpdatePrompt, { props: { pwa } });
+    const wrapper = mount(PwaStatus, { props: { pwa } });
     pwa.offlineReady.value = true;
     await nextTick();
     expect(wrapper.find('[data-testid="pwa-offline-ready"]').text()).toContain(
@@ -179,11 +192,12 @@ describe("PwaUpdatePrompt", () => {
 
   it("shows registration and update errors as alerts", async () => {
     const pwa = fakePwa();
-    const wrapper = mount(PwaUpdatePrompt, { props: { pwa } });
+    const wrapper = mount(PwaStatus, { props: { pwa } });
     pwa.error.value = "register";
     await nextTick();
-    const alert = wrapper.find('[role="alert"]');
-    expect(alert.text()).toContain("Modalità offline non disponibile");
+    expect(wrapper.find('[role="alert"]').text()).toContain(
+      "Modalità offline non disponibile",
+    );
 
     pwa.error.value = "update";
     await nextTick();
