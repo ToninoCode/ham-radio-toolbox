@@ -183,6 +183,7 @@ Ambiente di sviluppo: Linux / WSL2. Fornisci sempre comandi eseguibili lì.
 5. Aggiorna `docs/` e il README quando cambia il comportamento o la struttura.
 6. Alla fine di ogni milestone: **checklist di verifica** e criteri di completamento soddisfatti/non soddisfatti.
 7. Commit piccoli, in inglese, formato Conventional Commits (`feat(ham-logbook): add ADIF export`).
+8. `main` è protetto da un ruleset (dal 2026-10-17): niente push diretti né force push; ogni modifica passa da una PR con i check `quality` ed `e2e` verdi, merge _squash_ o _rebase_. Non rinominare quei job senza aggiornare `.github/rulesets/main-protection.json` e il ruleset su GitHub.
 
 ## Milestone
 

@@ -109,13 +109,15 @@ jobs:
   deploy:
     name: deploy
     needs: [quality, e2e]
-    # Production from main, previews from pull requests of this repository
-    # (forks never receive the secrets).
+    # Production from main, previews from pull requests of this repository.
+    # Forks never receive the secrets; Dependabot PRs come from this
+    # repository but run without Actions secrets, so they are excluded too.
     if: >-
       vars.CF_PAGES_DEPLOY == 'true' &&
       (github.event_name == 'push' ||
        (github.event_name == 'pull_request' &&
-        github.event.pull_request.head.repo.full_name == github.repository))
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.event.pull_request.user.login != 'dependabot[bot]'))
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
