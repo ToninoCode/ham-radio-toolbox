@@ -137,7 +137,7 @@ Fonti di riferimento: EiBi, HFCC, SigIDWiki, CelesTrak, SatNOGS, HamQSL, QRZ, eQ
 - Gestisci sempre stati di caricamento, vuoto ed errore nelle viste.
 - UI mobile-first, touch target ≥ 44px, dark mode, obiettivo **WCAG 2.2 AA** (etichette, contrasto, focus visibile, navigazione da tastiera).
 - Stringhe UI in italiano tramite il catalogo i18n tipizzato (`src/shared/i18n/`), **mai hardcoded** nei componenti. Codice, nomi, commenti e commit in **inglese**.
-- Richiedi la persistenza dello storage (`navigator.storage.persist()`) e mostra lo stato in Settings (all'avvio se non già concessa e con il pulsante in Impostazioni; quota e uso sono stime, mai garanzie).
+- Richiedi la persistenza dello storage (`navigator.storage.persist()`) **solo su richiesta esplicita** dell'utente in Settings; all'avvio leggi soltanto lo stato (`persisted()`). Mostra stato, quota e uso come stime, mai come garanzie (ADR-0016).
 - Preferenze solo in IndexedDB (`settings`), mai copie in `localStorage` (ADR-0016). Gli store ricevono i servizi per iniezione (`SETTINGS_SERVICES_KEY`), mai il container o i repository.
 - Codici d'errore tradotti con `errorMessage`/`issueMessage`/`persistenceMessage` di `src/shared/i18n`; il codice tecnico compare solo come dettaglio secondario. Un nuovo codice va aggiunto al catalogo e a `tests/integration/i18n-error-codes.spec.ts`.
 

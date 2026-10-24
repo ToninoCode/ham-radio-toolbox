@@ -1,6 +1,6 @@
 # 0016 — Preferenze persistenti, avvio dell'app e coordinamento fra schede
 
-- **Stato**: Proposto (da approvare con il Blocco D di M2)
+- **Stato**: Accettato (2026-10-24, approvazione del Blocco D di M2, con le correzioni della revisione riportate in fondo)
 - **Data**: 2026-10-24
 - **Milestone**: M2
 
@@ -30,7 +30,7 @@ Fatti verificati (Chromium di Playwright, `fake-indexeddb`):
 4. **Servizi per la presentation** forniti dal composition root con una chiave di iniezione del modulo (`SETTINGS_SERVICES_KEY`): preferenze, profili, storage, notifiche fra schede, `FileSaver`, caricamento pigro del backup. Gli store li ottengono con `inject()` (setup store di Pinia), mai importando il container.
 5. **Notifica fra schede**: porta `DataChangeNotifier` (`preferences`, `station-profiles`, `all`), adattatore su `BroadcastChannel`. I casi d'uso pubblicano dopo ogni scrittura confermata (il restore pubblica `all`); gli store delle altre schede rileggono. Senza l'API (browser molto vecchi) non si notifica: comportamento best effort dichiarato.
 6. **Stato del database nella shell** (`DatabaseStatus`, nel flusso della pagina): `version-change` (connessione chiusa, le modifiche confermate sono salvate, le nuove no; pulsante di ricarica), `blocked` (chiudere le altre schede; scompare quando l'apertura riesce), archivio non disponibile all'avvio o durante una scrittura.
-7. **Persistenza dello storage**: richiesta automatica all'avvio solo se i dati non sono già persistenti (NFR-REL-03), più il pulsante esplicito in Impostazioni; esito e diniego mostrati senza presentare la quota come garanzia.
+7. **Persistenza dello storage**: all'avvio si legge soltanto lo stato con `navigator.storage.persisted()`; `persist()` si chiama **solo su richiesta esplicita** dell'utente, con il pulsante in Impostazioni (correzione della revisione). Esito e diniego sono mostrati senza presentare la quota come garanzia.
 8. **Download del backup** con la porta `FileSaver` (adattatore `<a download>` su URL `blob:`, revocato dopo 60 s); il file è offerto solo dopo la rilettura di verifica (`BackupService.verifyBackup`).
 
 ## Alternative considerate
@@ -52,3 +52,9 @@ Fatti verificati (Chromium di Playwright, `fake-indexeddb`):
 - Con `version-change` le scritture successive falliscono con `persistence.unavailable/closed`: i dati inseriti restano nel modulo aperto, l'utente li può copiare prima di ricaricare.
 - La sincronizzazione fra schede copre preferenze, profili e restore; i moduli successivi (logbook) dovranno pubblicare i propri ambiti con la stessa porta.
 - I test di componente e degli store forniscono i servizi con un container reale su `fake-indexeddb` (`tests/support/app-services.ts`).
+
+## Correzioni all'accettazione (revisione del Blocco D, 2026-10-24)
+
+1. **Nessuna richiesta automatica di persistenza.** La versione proposta chiamava `persist()` all'avvio quando i dati non erano persistenti; ora l'avvio legge solo lo stato (`persisted()`, store `useStorageStatusStore`) e `persist()` parte esclusivamente dal pulsante di Impostazioni. Verificato in Chromium contando le chiamate (`tests/e2e/settings.spec.ts`, "persistence is read at startup and requested only by the user"). Il testo di NFR-REL-03 in REQUIREMENTS ("all'avvio si richiede `persist()`") diverge da questa decisione e va allineato dal maintainer.
+2. **Lettura delle preferenze oltre i 500 ms.** Una lettura che termina dopo l'attesa di avvio non sovrascrive le scelte fatte nel frattempo dall'utente, né quelle ancora in scrittura; applica i valori letti solo alle preferenze non toccate. Coperto da test dello store (`preferences-store.spec.ts`), dell'attesa (`src/app/startup.spec.ts`) e da un E2E con il database bloccato da un'altra scheda.
+3. **Coerenza fra schede e dopo un restore**, verificata in Chromium con due schede: preferiti e profili creati in una scheda compaiono nell'altra; dopo un restore tema, profili e preferiti si aggiornano senza ricaricare, nella scheda del restore e nelle altre.

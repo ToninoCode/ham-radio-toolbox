@@ -47,13 +47,16 @@ export type PersistenceRequestOutcome = "granted" | "denied" | "unsupported";
 
 export interface StorageService {
   status(): Promise<StorageStatus>;
-  /** Explicit request from Settings. */
-  requestPersistence(): Promise<PersistenceRequestOutcome>;
   /**
-   * Request at startup (NFR-REL-03), only when the data are not persisted
-   * yet; Chromium answers without prompting.
+   * Persistence state only (`navigator.storage.persisted()`): read at
+   * startup, it never asks the browser for anything.
    */
-  ensurePersistence(): Promise<PersistenceRequestOutcome>;
+  persistenceState(): Promise<PersistenceState>;
+  /**
+   * Asks the browser to persist the data (`persist()`). Called only on an
+   * explicit request of the user in Settings, never automatically.
+   */
+  requestPersistence(): Promise<PersistenceRequestOutcome>;
 }
 
 export interface StorageServiceDeps {
@@ -103,12 +106,9 @@ export function createStorageService(deps: StorageServiceDeps): StorageService {
         persistence: toState(persisted),
       };
     },
-    requestPersistence,
-    async ensurePersistence() {
-      const persisted = await storage.isPersisted();
-      if (persisted === undefined) return "unsupported";
-      if (persisted) return "granted";
-      return requestPersistence();
+    async persistenceState() {
+      return toState(await storage.isPersisted());
     },
+    requestPersistence,
   };
 }

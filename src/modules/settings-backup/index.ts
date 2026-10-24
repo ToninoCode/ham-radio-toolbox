@@ -80,6 +80,7 @@ export type {
 // provided by the composition root with SETTINGS_SERVICES_KEY.
 export { usePreferencesStore } from "./presentation/preferences-store";
 export type { PreferencesStatus } from "./presentation/preferences-store";
+export { useStorageStatusStore } from "./presentation/storage-status-store";
 export {
   SETTINGS_SERVICES_KEY,
   useSettingsServices,

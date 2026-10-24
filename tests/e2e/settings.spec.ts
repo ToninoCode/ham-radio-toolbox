@@ -41,6 +41,24 @@ async function createProfile(
   );
 }
 
+async function toggleFavorite(page: Page, id: string): Promise<void> {
+  await page
+    .locator(
+      `[data-area] [data-module="${id}"] [data-testid="favorite-toggle"]`,
+    )
+    .click();
+}
+
+/** Ids of the pinned modules, in order. */
+function favoriteIds(page: Page): Promise<(string | null)[]> {
+  return page
+    .getByTestId("favorites")
+    .getByTestId("module-card")
+    .evaluateAll((cards) =>
+      cards.map((card) => card.getAttribute("data-module")),
+    );
+}
+
 function profileItem(page: Page, name: string) {
   return page.getByTestId("profile-item").filter({ hasText: name });
 }
@@ -242,10 +260,14 @@ test.describe("IndexedDB unavailable", () => {
 test.describe("backup and restore", () => {
   test("export, download, restore with preview and confirmation; the UI follows", async ({
     page,
+    context,
   }) => {
     const errors = trackErrors(page);
     await page.setViewportSize(VIEWPORTS.desktop);
     await page.emulateMedia({ colorScheme: "light" });
+    await page.goto("/");
+    await toggleFavorite(page, "propagation");
+    await expect(favoriteIds(page)).resolves.toEqual(["propagation"]);
     await openSettings(page);
     await createProfile(page, { name: "Casa", callsign: "iz1abc" });
     await page.getByTestId("settings-theme").getByText("Scuro").click();
@@ -288,10 +310,29 @@ test.describe("backup and restore", () => {
       ),
     ).toEqual([]);
 
-    // Local changes after the backup.
+    // Local changes after the backup: profile, theme, favourites.
     await createProfile(page, { name: "Portatile", callsign: "iz1abc/p" });
     await page.getByTestId("settings-theme").getByText("Chiaro").click();
     await expect(page.locator("html")).toHaveClass(/\blight\b/);
+    await page
+      .getByTestId("sidebar")
+      .locator('a[data-module="dashboard"]')
+      .click();
+    await toggleFavorite(page, "propagation");
+    await toggleFavorite(page, "ham-logbook");
+    await expect(favoriteIds(page)).resolves.toEqual(["ham-logbook"]);
+    await page
+      .getByTestId("sidebar")
+      .locator('a[data-module="settings-backup"]')
+      .click();
+    await expect(page.getByTestId("settings")).toBeVisible();
+
+    // A second tab on the dashboard, with the same (pre-restore) state.
+    const other = await context.newPage();
+    await other.setViewportSize(VIEWPORTS.desktop);
+    await other.emulateMedia({ colorScheme: "light" });
+    await other.goto("/");
+    await expect.poll(() => favoriteIds(other)).toEqual(["ham-logbook"]);
 
     // Restore: analysis, contents, preview, confirmation.
     const restore = page.getByTestId("restore-section");
@@ -321,13 +362,21 @@ test.describe("backup and restore", () => {
     await dialog.getByTestId("restore-commit").click();
     await expect(restore.getByTestId("restore-done")).toBeVisible();
 
-    // The app shows the restored state without a reload.
+    // The app shows the restored state without a reload: theme, profiles,
+    // favourites on the dashboard; the other tab follows too.
     await expect(page.locator("html")).toHaveClass(/\bdark\b/);
     await expect(profileItem(page, "Portatile")).toHaveCount(0);
     await expect(
       profileItem(page, "Casa").getByTestId("profile-default"),
     ).toBeVisible();
-    await page.reload();
+    await page
+      .getByTestId("sidebar")
+      .locator('a[data-module="dashboard"]')
+      .click();
+    await expect.poll(() => favoriteIds(page)).toEqual(["propagation"]);
+    await expect.poll(() => favoriteIds(other)).toEqual(["propagation"]);
+    await expect(other.locator("html")).toHaveClass(/\bdark\b/);
+    await page.goto("/settings-backup");
     await expect(profileItem(page, "Portatile")).toHaveCount(0);
     expect(errors).toEqual([]);
   });
@@ -378,6 +427,20 @@ test.describe("two tabs", () => {
       second
         .getByTestId("favorites")
         .locator('[data-module="satellite-explorer"]'),
+    ).toBeVisible();
+  });
+
+  test("a profile created in one tab appears in the other", async ({
+    context,
+  }) => {
+    const first = await context.newPage();
+    const second = await context.newPage();
+    await openSettings(first);
+    await openSettings(second);
+    await createProfile(first, { name: "Casa", callsign: "iz1abc" });
+    await expect(profileItem(second, "Casa")).toBeVisible();
+    await expect(
+      profileItem(second, "Casa").getByTestId("profile-default"),
     ).toBeVisible();
   });
 
@@ -468,6 +531,95 @@ test.describe("two tabs", () => {
     await expect(
       app.getByTestId("favorites").getByTestId("module-card"),
     ).toHaveCount(1);
+  });
+});
+
+test.describe("startup", () => {
+  test("persistence is read at startup and requested only by the user", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const calls = { persist: 0, persisted: 0 };
+      (window as unknown as { __storageCalls: typeof calls }).__storageCalls =
+        calls;
+      const storage = navigator.storage;
+      const persist = storage.persist.bind(storage);
+      const persisted = storage.persisted.bind(storage);
+      storage.persist = () => {
+        calls.persist++;
+        return persist();
+      };
+      storage.persisted = () => {
+        calls.persisted++;
+        return persisted();
+      };
+    });
+    const calls = () =>
+      page.evaluate(
+        () =>
+          (
+            window as unknown as {
+              __storageCalls: { persist: number; persisted: number };
+            }
+          ).__storageCalls,
+      );
+    await page.goto("/");
+    await expect(page.getByTestId("dashboard")).toBeVisible();
+    await expect.poll(async () => (await calls()).persisted).toBeGreaterThan(0);
+    await openSettings(page);
+    await expect(page.getByTestId("storage-persistence")).toBeVisible();
+    expect((await calls()).persist).toBe(0);
+
+    const request = page.getByRole("button", {
+      name: "Richiedi archiviazione persistente",
+    });
+    if (await request.isVisible()) {
+      await request.click();
+      await expect(page.getByTestId("persistence-outcome")).toBeVisible();
+      expect((await calls()).persist).toBe(1);
+    }
+  });
+
+  test("preferences read after the 500 ms wait do not overwrite the user's choices", async ({
+    context,
+  }) => {
+    // An old tab keeps the database at an older version: this tab's open
+    // (and so the preferences read) waits well beyond 500 ms.
+    const old = await context.newPage();
+    await old.goto("/favicon.svg");
+    await old.evaluate(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          const request = indexedDB.open("ham-radio-toolbox", 5);
+          request.onsuccess = () => {
+            (window as unknown as { __old: IDBDatabase }).__old =
+              request.result;
+            resolve();
+          };
+          request.onerror = () => reject(new Error(String(request.error)));
+        }),
+    );
+    const app = await context.newPage();
+    await app.setViewportSize(VIEWPORTS.desktop);
+    await app.emulateMedia({ colorScheme: "light" });
+    await app.goto("/");
+    // Mounted with the defaults after the wait, database still blocked.
+    await expect(app.getByTestId("dashboard")).toBeVisible();
+    await expect(app.getByTestId("database-blocked")).toBeVisible();
+    await app.getByTestId("app-header").getByTitle("Scuro").click();
+    await toggleFavorite(app, "satellite-explorer");
+
+    await old.evaluate(() =>
+      (window as unknown as { __old: IDBDatabase }).__old.close(),
+    );
+    await expect(app.getByTestId("database-blocked")).toHaveCount(0);
+    // The late read did not bring back the defaults…
+    await expect(app.locator("html")).toHaveClass(/\bdark\b/);
+    await expect.poll(() => favoriteIds(app)).toEqual(["satellite-explorer"]);
+    // …and the choices were written once the database opened.
+    await app.reload();
+    await expect(app.locator("html")).toHaveClass(/\bdark\b/);
+    await expect.poll(() => favoriteIds(app)).toEqual(["satellite-explorer"]);
   });
 });
 

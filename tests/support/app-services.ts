@@ -8,7 +8,10 @@ import {
   type AppContainer,
   type ContainerOptions,
 } from "@/app/container";
-import { SETTINGS_SERVICES_KEY } from "@/modules/settings-backup";
+import {
+  SETTINGS_SERVICES_KEY,
+  type SettingsServices,
+} from "@/modules/settings-backup";
 import {
   silentDataChangeNotifier,
   type StorageEstimate,
@@ -80,7 +83,11 @@ export function containerProvides(container: AppContainer) {
  * A Vue app with Pinia and the services, for store tests outside
  * components: setup stores reach the services through inject().
  */
-export function createStoreTestApp(container = createTestContainer()): {
+export function createStoreTestApp(
+  container = createTestContainer(),
+  /** Replacements of some services (e.g. a slow preferences load). */
+  overrides: Partial<SettingsServices> = {},
+): {
   app: App;
   pinia: Pinia;
   container: AppContainer;
@@ -89,7 +96,10 @@ export function createStoreTestApp(container = createTestContainer()): {
   const app = createApp({ render: () => null });
   app.use(pinia);
   app.provide(APP_CONTAINER_KEY, container);
-  app.provide(SETTINGS_SERVICES_KEY, settingsServicesOf(container));
+  app.provide(SETTINGS_SERVICES_KEY, {
+    ...settingsServicesOf(container),
+    ...overrides,
+  });
   setActivePinia(pinia);
   return { app, pinia, container };
 }

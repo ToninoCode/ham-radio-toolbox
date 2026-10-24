@@ -233,7 +233,7 @@ La porta `RigControl` viene **solo dichiarata** quando servirà (non in v1), per
 
 Stato M2: `createContainer(options)` crea `AppDatabase` (aperto in modo pigro alla prima operazione, oppure con `connect()`, che riporta il motivo di un'apertura fallita), `DexieUnitOfWork`, i repository e le porte di sistema; `main.ts` lo fornisce con `APP_CONTAINER_KEY`. Le opzioni permettono ai test di usare un IndexedDB isolato, un orologio e un generatore di id propri. Il container importa direttamente gli adattatori in `modules/*/infrastructure` (eccezione consentita al solo composition root, § 3). Il servizio di backup e restore si ottiene con `loadBackupService()`, che carica con un import dinamico `app/backup-wiring.ts` (codec, gateway e casi d'uso in un chunk separato, ADR-0015).
 
-Blocco D: il container espone anche `storageInfo`, `dataChanges`, `fileSaver`, `database` (`DatabaseConnection`) e `services` (preferenze, profili, storage). `main.ts` fornisce i servizi della presentation di `settings-backup` con `SETTINGS_SERVICES_KEY` (`settingsServicesOf(container)`), avvia lo stato del database, legge le preferenze aspettando al massimo 500 ms, monta l'app e poi chiede la persistenza dello storage ([ADR-0016](../adr/0016-persistent-preferences-startup-and-tabs.md)). Gli store ottengono i servizi con `inject()` (setup store di Pinia, contesto dell'app), mai importando il container.
+Blocco D: il container espone anche `storageInfo`, `dataChanges`, `fileSaver`, `database` (`DatabaseConnection`) e `services` (preferenze, profili, storage). `main.ts` fornisce i servizi della presentation di `settings-backup` con `SETTINGS_SERVICES_KEY` (`settingsServicesOf(container)`), avvia lo stato del database, legge lo stato di persistenza (solo `persisted()`) e le preferenze aspettando al massimo 500 ms (`src/app/startup.ts`), poi monta l'app; `persist()` parte solo dal pulsante di Impostazioni ([ADR-0016](../adr/0016-persistent-preferences-startup-and-tabs.md)). Gli store ottengono i servizi con `inject()` (setup store di Pinia, contesto dell'app), mai importando il container.
 
 ### 5.4 Stato e store Pinia
 
@@ -327,7 +327,7 @@ Implementazione con `vite-plugin-pwa` (Workbox, modalità `generateSW`; `injectM
 
 - **Aggiornamento**: `registerType: 'prompt'`; quando c'è un nuovo SW in attesa compare un toast "Nuova versione disponibile — Aggiorna" (FR-DSH-08). Nessun `skipWaiting` silenzioso, per non cambiare versione durante l'inserimento di un QSO.
 - **Manifest**: nome, `short_name`, icone (192, 512, maskable), `display: standalone`, `orientation: any`, `theme_color`/`background_color` coerenti con il tema scuro, `lang: it`.
-- **Persistenza**: al primo avvio dopo l'installazione (o alla prima scrittura) `navigator.storage.persist()`; stato visibile in Impostazioni.
+- **Persistenza**: all'avvio si legge lo stato con `navigator.storage.persisted()`; `persist()` si chiama solo su richiesta esplicita dell'utente in Impostazioni (M2, [ADR-0016](../adr/0016-persistent-preferences-startup-and-tabs.md)).
 - **Cache HTTP**: Cloudflare Pages serve per default `Cache-Control: public, max-age=0, must-revalidate` ed `ETag`, quindi `index.html` e le route vengono sempre rivalidati. `public/_headers` aggiunge `no-cache` esplicito per `sw.js` e `immutable` per gli asset con hash (`/assets/*`, `/workbox-*.js`); dettaglio in § 12.1. Gli asset con hash restano comunque nel precache del SW.
 - **Stato online**: composable `useOnline()` basato su eventi `online/offline` e sull'esito delle ultime richieste ai provider.
 
@@ -367,7 +367,7 @@ Configurazione in `vite.config.ts`, registrazione in `src/app/pwa/`. Nessun serv
 
 - Playwright emula Chrome per Android (viewport, touch, user agent) su Chromium desktop: non verifica il prompt di installazione reale, la modalità standalone, lo splash screen né il ritaglio dell'icona maskable del launcher. Servono le verifiche manuali di § 8.2.
 - `context.setOffline` simula l'assenza di rete del browser, non la modalità aereo del sistema operativo.
-- La quota e l'eventuale eliminazione dei dati da parte del browser dipendono da `navigator.storage.persist()`, che arriva con M2.
+- La quota e l'eventuale eliminazione dei dati da parte del browser dipendono da `navigator.storage.persist()`, richiedibile da Impostazioni dalla M2.
 - Safari/iOS: best effort (NFR-CMP-02); l'icona Apple è presente, ma il comportamento non è verificato.
 - La prima visita richiede la rete: l'offline è disponibile solo dopo che il precache è completo (avviso "pronta per l'uso offline").
 

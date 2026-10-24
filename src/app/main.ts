@@ -4,6 +4,7 @@ import { createApp } from "vue";
 import {
   SETTINGS_SERVICES_KEY,
   usePreferencesStore,
+  useStorageStatusStore,
 } from "@/modules/settings-backup";
 import { MODULE_CATALOG_KEY } from "@/shared/modules";
 import App from "./App.vue";
@@ -15,26 +16,8 @@ import {
 import { moduleCatalog } from "./modules";
 import { useDatabaseStatusStore } from "./persistence/database-status-store";
 import { createAppRouter } from "./router";
+import { settleWithin, STARTUP_PREFERENCES_WAIT_MS } from "./startup";
 import { useThemeStore } from "./theme/theme-store";
-
-/**
- * Longest wait for the stored preferences before mounting. Reading them
- * usually takes a few milliseconds; waiting avoids a theme switch and a
- * favourites list that pops in after the page appears. If the database is
- * slow or blocked by another tab, the app mounts with the defaults and
- * applies the stored values when they arrive.
- */
-const STARTUP_PREFERENCES_WAIT_MS = 500;
-
-function within(promise: Promise<unknown>, ms: number): Promise<void> {
-  return new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    void promise.finally(() => {
-      clearTimeout(timer);
-      resolve();
-    });
-  });
-}
 
 async function bootstrap(): Promise<void> {
   const pinia = createPinia();
@@ -52,14 +35,13 @@ async function bootstrap(): Promise<void> {
     lifecycle: container.databaseLifecycle,
     database: container.database,
   });
+  // Read only: persist() is asked for by the user, from Settings.
+  void useStorageStatusStore(pinia).readPersistence();
   const preferences = usePreferencesStore(pinia);
   useThemeStore(pinia).start();
-  await within(preferences.load(), STARTUP_PREFERENCES_WAIT_MS);
+  await settleWithin(preferences.load(), STARTUP_PREFERENCES_WAIT_MS);
 
   app.mount("#app");
-
-  // NFR-REL-03: ask the browser to keep the data (no prompt in Chromium).
-  void container.services.storage.ensurePersistence();
 }
 
 void bootstrap();

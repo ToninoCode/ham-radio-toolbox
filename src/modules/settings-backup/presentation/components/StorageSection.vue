@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, shallowRef } from "vue";
+import { computed, onMounted, ref, shallowRef } from "vue";
 import {
   formatBytes,
   formatPercent,
@@ -13,6 +13,7 @@ import type {
   StorageStatus,
 } from "../../application/storage-service";
 import { useSettingsServices } from "../services";
+import { useStorageStatusStore } from "../storage-status-store";
 
 /*
  * Storage status (FR-SET-03, NFR-REL-03): database availability, browser
@@ -23,7 +24,12 @@ import { useSettingsServices } from "../services";
 const { t } = useI18n();
 const services = useSettingsServices();
 
+const storageStatus = useStorageStatusStore();
 const status = shallowRef<StorageStatus>();
+/** Read at startup; refreshed with the rest of the status. */
+const persistence = computed(
+  () => status.value?.persistence ?? storageStatus.persistence,
+);
 const checking = ref(false);
 const requesting = ref(false);
 const requestOutcome = ref<PersistenceRequestOutcome>();
@@ -40,7 +46,8 @@ async function refresh(): Promise<void> {
 async function requestPersistence(): Promise<void> {
   requesting.value = true;
   try {
-    requestOutcome.value = await services.storage.requestPersistence();
+    // persist() is called here only, on the user's explicit request.
+    requestOutcome.value = await storageStatus.requestPersistence();
     await refresh();
   } finally {
     requesting.value = false;
@@ -149,13 +156,13 @@ onMounted(refresh);
         </dt>
         <dd class="flex flex-col gap-2" data-testid="storage-persistence">
           <span class="text-sm">{{
-            status.persistence === "persisted"
+            persistence === "persisted"
               ? t("storage.persistence.persisted")
-              : status.persistence === "best-effort"
+              : persistence === "best-effort"
                 ? t("storage.persistence.bestEffort")
                 : t("storage.persistence.unsupported")
           }}</span>
-          <span v-if="status.persistence === 'best-effort'">
+          <span v-if="persistence === 'best-effort'">
             <AppButton :disabled="requesting" @click="requestPersistence">
               {{
                 requesting

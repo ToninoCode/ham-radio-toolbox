@@ -245,21 +245,26 @@ describe("storage status", () => {
     expect(await service.requestPersistence()).toBe("denied");
   });
 
-  it("asks for persistence at startup only when not persisted yet", async () => {
+  it("reads the persistence state without ever asking for it", async () => {
     const test = createTestDatabase();
-    const granted = fakeStorageInfo({ persisted: false, grant: true });
+    const storage = fakeStorageInfo({ persisted: false, grant: true });
     const service = createStorageService({
-      storage: granted,
+      storage,
       database: test.container.database,
     });
-    expect(await service.ensurePersistence()).toBe("granted");
-    expect(await service.ensurePersistence()).toBe("granted");
-    expect(granted.requests).toBe(1);
+    expect(await service.persistenceState()).toBe("best-effort");
+    await service.status();
+    expect(storage.requests).toBe(0);
+    // Only the explicit request calls persist().
+    expect(await service.requestPersistence()).toBe("granted");
+    expect(storage.requests).toBe(1);
+    expect(await service.persistenceState()).toBe("persisted");
     const none = createStorageService({
       storage: fakeStorageInfo(),
       database: test.container.database,
     });
-    expect(await none.ensurePersistence()).toBe("unsupported");
+    expect(await none.persistenceState()).toBe("unsupported");
+    expect(await none.requestPersistence()).toBe("unsupported");
     expect((await none.status()).usage).toBeUndefined();
   });
 
