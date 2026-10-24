@@ -46,6 +46,11 @@ function lookup(catalog: MessageCatalog, key: string): MessageLeaf | undefined {
   return undefined;
 }
 
+/** Whether `key` names a message (plain or plural) of the catalog. */
+export function hasMessage(catalog: MessageCatalog, key: string): boolean {
+  return lookup(catalog, key) !== undefined;
+}
+
 /**
  * Creates the `t()` function for a catalog (ADR-0008): `{name}` interpolation,
  * numbers formatted with `Intl.NumberFormat`, plural forms selected with

@@ -15,8 +15,12 @@ describe("application module catalog", () => {
     expect(moduleCatalog.tools.map((m) => m.id)).not.toContain("dashboard");
   });
 
-  it("marks every module except the dashboard as in development, with a milestone", () => {
+  it("marks Settings as available (M2) and the other tools as in development, with a milestone", () => {
+    expect(moduleCatalog.get("settings-backup").availability).toEqual({
+      status: "available",
+    });
     for (const manifest of moduleCatalog.tools) {
+      if (manifest.id === "settings-backup") continue;
       expect(manifest.availability).toEqual({
         status: "in-development",
         milestone: expect.stringMatching(/^M([2-9]|1[0-3])$/),

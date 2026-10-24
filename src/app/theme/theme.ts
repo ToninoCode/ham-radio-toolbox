@@ -1,11 +1,10 @@
-export type ThemePreference = "system" | "light" | "dark";
+import type { ThemePreference } from "@/modules/settings-backup";
+
+export type { ThemePreference };
 export type ResolvedTheme = "light" | "dark";
 
-export const THEME_PREFERENCES: readonly ThemePreference[] = [
-  "system",
-  "light",
-  "dark",
-];
+/** Persisted values (settings-backup, key `app`). */
+export { THEME_PREFERENCES } from "@/modules/settings-backup";
 
 /** Must match `--hrt-canvas` in shared/ui/styles/main.css. */
 export const THEME_COLORS: Readonly<Record<ResolvedTheme, string>> = {

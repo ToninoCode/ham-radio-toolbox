@@ -210,18 +210,21 @@ Legenda modalità di accesso: **native** = lettura diretta dal browser · **impo
 
 ## 4. Fonti da valutare (non in `PROJECT.md`)
 
-| Fonte                          | Uso potenziale                           | Stato                                                                                              | Milestone |
-| ------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------------------------------- | --------- |
-| NOAA SWPC                      | Propagazione numerica                    | Verificata (§ 3.7), richiede ADR-0010                                                              | M12       |
-| Country Files `cty.dat` (AD1C) | Prefisso → entità DXCC, continente, zone | Licenza e formato da verificare (Q-06)                                                             | M3        |
-| ITU / tabelle EiBi             | Decodifica codici paese/lingua/area      | Le tabelle sono nel `README.TXT` EiBi (stessa licenza)                                             | M5        |
-| Band plan IARU Regione 1       | Derivazione banda                        | Documento pubblico IARU; i limiti di banda sono dati fattuali da codificare a mano con riferimento | M2/M3     |
+| Fonte                          | Uso potenziale                           | Stato                                                                                                | Milestone |
+| ------------------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------- |
+| NOAA SWPC                      | Propagazione numerica                    | Verificata (§ 3.7), richiede ADR-0010                                                                | M12       |
+| Country Files `cty.dat` (AD1C) | Prefisso → entità DXCC, continente, zone | Licenza e formato da verificare (Q-06)                                                               | M3        |
+| ITU / tabelle EiBi             | Decodifica codici paese/lingua/area      | Le tabelle sono nel `README.TXT` EiBi (stessa licenza)                                               | M5        |
+| Band plan IARU Regione 1       | Derivazione banda                        | ✅ Limiti verificati il 2026-10-17 e codificati in `src/core/frequency/iaru-region1.ts` (vedi sotto) | M2/M3     |
+
+**Band plan IARU Regione 1 (BL-M2-01).** Dati fattuali (limiti di banda) codificati a mano, nessun download né import a runtime. Riferimenti: _IARU Region 1 HF band plan_, revisione 2016, e voce HF del wiki IARU R1 (allocazioni ITU Regione 1), per 135,7 kHz – 29,7 MHz; _IARU Region 1 VHF/UHF band plans_, edizione 2020 (conferenza di Novi Sad), per 50–2450 MHz, con limiti coincidenti con l'edizione 2004 (San Marino). Sono codificate 18 bande, da 2190 m a 13 cm. Restano **escluse** le bande da 9 cm in su: le fonti consultate (piano 2004 ripubblicato da terzi; il PDF 2020 non era leggibile come testo) non bastano per confermare i limiti attuali. Una frequenza in quelle bande risulta fuori banda e l'utente sceglie la banda a mano (FR-HAM-02). Il band plan **non** equivale alle autorizzazioni nazionali: 4 m è marcata `national` (nessuna allocazione ITU in Regione 1).
 
 ---
 
 ## 5. Registro delle verifiche
 
-| Data       | Fonte                 | Esito                                 | Note                                                                                                          |
-| ---------- | --------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| 2026-10-17 | Tutte le fonti di § 2 | Prima verifica (M0)                   | Header raccolti con `curl` da Linux/WSL2; contenuti di termini letti dalle pagine ufficiali dove disponibili. |
-| 2026-10-17 | HFCC (chiusura M0)    | Pacchetto A26 scaricato e ispezionato | Struttura ZIP, colonne, numero di record e codifica documentati in § 3.2; EiBi `sked-a26.csv`: 9 593 righe.   |
+| Data       | Fonte                  | Esito                                       | Note                                                                                                                                            |
+| ---------- | ---------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-10-17 | Tutte le fonti di § 2  | Prima verifica (M0)                         | Header raccolti con `curl` da Linux/WSL2; contenuti di termini letti dalle pagine ufficiali dove disponibili.                                   |
+| 2026-10-17 | HFCC (chiusura M0)     | Pacchetto A26 scaricato e ispezionato       | Struttura ZIP, colonne, numero di record e codifica documentati in § 3.2; EiBi `sked-a26.csv`: 9 593 righe.                                     |
+| 2026-10-17 | Band plan IARU R1 (M2) | Limiti HF e VHF/UHF verificati fino a 13 cm | Fonti: wiki HF IARU R1, piani HF 2014/2016 e VHF 2004/2020 ripubblicati da società nazionali. Microonde (≥ 9 cm) non confermate, escluse (§ 4). |

@@ -1,0 +1,37 @@
+{"format":"ham-radio-toolbox-backup","backupFormatVersion":1,"schemaVersion":1,"appVersion":"0.0.0-test","backupId":"00000000-0000-4000-8000-00000000bac0","exportedAt":"2026-10-24T10:00:00Z","includesAttachments":true,"counts":{"station_profiles":2,"qso_logs":6,"swl_receptions":2,"reception_details":2,"qsl_records":1,"attachments":1,"settings":1,"data_sources":1,"import_jobs":1},"tables":{
+"station_profiles":[
+{"callsign":"IZ1ABC","createdAt":"2026-01-01T00:00:00Z","id":"00000000-0000-4000-8000-000000000001","isDefault":1,"kind":"both","locator":"JN45dl","name":"Casa","updatedAt":"2026-01-01T00:00:00Z"},
+{"createdAt":"2026-01-01T00:00:00Z","id":"00000000-0000-4000-8000-000000000002","isDefault":0,"kind":"swl","name":"Portatile","swlId":"I-12345","updatedAt":"2026-01-01T00:00:00Z"}
+],
+"qso_logs":[
+{"band":"20m","callsign":"I0XYZ","comment":"QSO numero 0 – tnx 73 📻","createdAt":"2026-01-01T01:00:00Z","datetimeOn":"2026-01-01T01:00:00Z","frequencyHz":14074000,"id":"00000000-0000-4000-8000-000000000003","mode":"FT8","origin":"manual","rstRcvd":"-12","rstSent":"-10","stationProfileId":"00000000-0000-4000-8000-000000000001","updatedAt":"2026-01-01T01:00:00Z"},
+{"band":"20m","callsign":"I1XYZ","comment":"QSO numero 1 – tnx 73 📻","createdAt":"2026-01-01T01:01:00Z","datetimeOn":"2026-01-01T01:01:00Z","frequencyHz":14074010,"id":"00000000-0000-4000-8000-000000000007","mode":"FT8","origin":"manual","rstRcvd":"-12","rstSent":"-10","stationProfileId":"00000000-0000-4000-8000-000000000001","updatedAt":"2026-01-01T01:01:00Z"},
+{"band":"20m","callsign":"I2XYZ","comment":"QSO numero 2 – tnx 73 📻","createdAt":"2026-01-01T01:02:00Z","datetimeOn":"2026-01-01T01:02:00Z","frequencyHz":14074020,"id":"00000000-0000-4000-8000-000000000008","mode":"FT8","origin":"manual","rstRcvd":"-12","rstSent":"-10","stationProfileId":"00000000-0000-4000-8000-000000000001","updatedAt":"2026-01-01T01:02:00Z"},
+{"band":"20m","callsign":"I3XYZ","comment":"QSO numero 3 – tnx 73 📻","createdAt":"2026-01-01T01:03:00Z","datetimeOn":"2026-01-01T01:03:00Z","frequencyHz":14074030,"id":"00000000-0000-4000-8000-000000000009","mode":"FT8","origin":"manual","rstRcvd":"-12","rstSent":"-10","stationProfileId":"00000000-0000-4000-8000-000000000001","updatedAt":"2026-01-01T01:03:00Z"},
+{"band":"20m","callsign":"I4XYZ","comment":"QSO numero 4 – tnx 73 📻","createdAt":"2026-01-01T01:04:00Z","datetimeOn":"2026-01-01T01:04:00Z","frequencyHz":14074040,"id":"00000000-0000-4000-8000-00000000000a","mode":"FT8","origin":"manual","rstRcvd":"-12","rstSent":"-10","stationProfileId":"00000000-0000-4000-8000-000000000001","updatedAt":"2026-01-01T01:04:00Z"},
+{"band":"20m","callsign":"I5XYZ","comment":"QSO numero 5 – tnx 73 📻","createdAt":"2026-01-01T01:05:00Z","datetimeOn":"2026-01-01T01:05:00Z","frequencyHz":14074050,"id":"00000000-0000-4000-8000-00000000000d","mode":"FT8","origin":"manual","rstRcvd":"-12","rstSent":"-10","stationProfileId":"00000000-0000-4000-8000-000000000001","updatedAt":"2026-01-01T01:05:00Z"}
+],
+"swl_receptions":[
+{"category":"broadcast","createdAt":"2026-01-01T01:00:00Z","datetimeStart":"2026-01-01T01:00:00Z","frequencyHz":6070000,"id":"00000000-0000-4000-8000-000000000004","modulation":"AM","sinpo":"45444","stationName":"Radio 0","stationProfileId":"00000000-0000-4000-8000-000000000002","updatedAt":"2026-01-01T01:00:00Z"},
+{"category":"broadcast","createdAt":"2026-01-01T01:04:00Z","datetimeStart":"2026-01-01T01:04:00Z","frequencyHz":6070000,"id":"00000000-0000-4000-8000-00000000000b","modulation":"AM","sinpo":"45444","stationName":"Radio 4","stationProfileId":"00000000-0000-4000-8000-000000000002","updatedAt":"2026-01-01T01:04:00Z"}
+],
+"reception_details":[
+{"category":"broadcast","createdAt":"2026-01-01T01:00:00Z","data":{"programme":"Notiziario","qslRequested":true},"id":"00000000-0000-4000-8000-000000000005","receptionId":"00000000-0000-4000-8000-000000000004","updatedAt":"2026-01-01T01:00:00Z"},
+{"category":"broadcast","createdAt":"2026-01-01T01:04:00Z","data":{"programme":"Notiziario","qslRequested":true},"id":"00000000-0000-4000-8000-00000000000c","receptionId":"00000000-0000-4000-8000-00000000000b","updatedAt":"2026-01-01T01:04:00Z"}
+],
+"qsl_records":[
+{"channel":"paper","createdAt":"2026-01-01T01:00:00Z","id":"00000000-0000-4000-8000-000000000006","origin":"manual","sentAt":"2026-01-01T01:00:00Z","status":"sent","subjectId":"00000000-0000-4000-8000-000000000003","subjectType":"qso","updatedAt":"2026-01-01T01:00:00Z"}
+],
+"attachments":[
+{"createdAt":"2026-01-01T00:00:00Z","dataBase64":"YwNHScvzQwQPTwEKg4rLT7f3pIK7UWHWFU2h0fvnlGPQU92e2EWb2qWfVpGV6hlg","fileName":"allegato-0.bin","id":"00000000-0000-4000-8000-00000000000e","mimeType":"audio/ogg","ownerId":"00000000-0000-4000-8000-000000000003","ownerType":"qso","sha256":"a88b6dd12a0822718872fc3bf7e4f1b2dff511c2e6ae03c0648ecb65171de5ee","sizeBytes":48}
+],
+"settings":[
+{"key":"app","updatedAt":"2026-01-01T00:00:00Z","value":{"theme":"dark"}}
+],
+"data_sources":[
+{"accessMode":"manual-import","key":"eibi"}
+],
+"import_jobs":[
+{"counts":{"duplicates":0,"inserted":0,"invalid":0,"skipped":0,"total":0,"updated":0,"valid":0},"errors":[],"finishedAt":"2026-01-01T00:00:00Z","id":"00000000-0000-4000-8000-00000000000f","kind":"csv","startedAt":"2026-01-01T00:00:00Z","status":"cancelled"}
+]
+},"integrity":{"algorithm":"SHA-256","tables":{"station_profiles":"1fff8b6d923eee5d3f41fb6f94f071986b9de5bd7e4aa24e2aba362c8df9d038","qso_logs":"59e4aca46097a0b42d2159a6cc2771fd6feb9dd2f86bf26acf5fa5e1dd6cdf26","swl_receptions":"6081e954bc161128d43a407a65524322044cdf727f832d4d7846b721884707e9","reception_details":"34ae8dd94c19a6ed26f45e0b91d9619dc10079659c55aefa32cce276c5c963c5","qsl_records":"491c2207f9e1a05026a85ae9d7dc7bd8563b889923d0f94bb6b32f1809e24dfc","attachments":"b43455f28848d907235b425e115e4e7d0223df1a51807da1d1f1199f26f97ac5","settings":"23d0ed41a4265e2fefd835b06b42757502ec90962945f89005b89f9528cfca3e","data_sources":"36303ed2de2b6157f642f29baaf3222dfd9f07473718abfba43efe678c4aedc1","import_jobs":"d39a00f7134474e98e125f56d8285eedd00b62757a396d311685ba5bf9c4b301"}}}

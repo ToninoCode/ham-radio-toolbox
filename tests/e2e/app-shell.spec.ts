@@ -31,6 +31,8 @@ test.describe("app shell", () => {
 
   test("skip link moves focus to the main content", async ({ page }) => {
     await page.goto("/");
+    // The app mounts once the stored preferences are read (≤ 500 ms).
+    await expect(page.getByTestId("dashboard")).toBeVisible();
     await page.keyboard.press("Tab");
     const skip = page.getByRole("link", {
       name: "Vai al contenuto principale",

@@ -1,9 +1,20 @@
 import { expect, test } from "@playwright/test";
-import { MODULE_PATHS, trackErrors, VIEWPORTS } from "./support";
+import { MODULE_PATHS, pageTestIdOf, trackErrors, VIEWPORTS } from "./support";
 
 test.describe("navigation", () => {
+  test("deep link /settings-backup opens the Settings page", async ({
+    page,
+  }) => {
+    const errors = trackErrors(page);
+    const response = await page.goto("/settings-backup");
+    expect(response?.status()).toBe(200);
+    await expect(page.getByTestId("settings")).toBeVisible();
+    await expect(page).toHaveTitle("Impostazioni e backup · Ham Radio Toolbox");
+    expect(errors).toEqual([]);
+  });
+
   for (const [id, path] of Object.entries(MODULE_PATHS)) {
-    if (id === "dashboard") continue;
+    if (pageTestIdOf(id) !== "under-development") continue;
 
     test(`deep link ${path} opens the "In sviluppo" page`, async ({ page }) => {
       const errors = trackErrors(page);
@@ -34,8 +45,12 @@ test.describe("navigation", () => {
         .getByRole("link")
         .click();
       await expect(page).toHaveURL(path);
-      await expect(page.getByTestId("under-development")).toBeVisible();
-      await page.getByRole("link", { name: "Torna alla dashboard" }).click();
+      await expect(page.getByTestId(pageTestIdOf(id))).toBeVisible();
+      if (pageTestIdOf(id) === "under-development") {
+        await page.getByRole("link", { name: "Torna alla dashboard" }).click();
+      } else {
+        await page.goBack();
+      }
       await expect(page.getByTestId("dashboard")).toBeVisible();
     }
   });

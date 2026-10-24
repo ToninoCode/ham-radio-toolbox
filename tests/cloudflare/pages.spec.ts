@@ -182,6 +182,41 @@ test.describe("the app under the production CSP", () => {
     expect(errors).toEqual([]);
   });
 
+  test("Settings: backup, download and restore preview without CSP violations", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const violations: string[] = [];
+      (window as unknown as { __cspViolations: string[] }).__cspViolations =
+        violations;
+      document.addEventListener("securitypolicyviolation", (event) => {
+        violations.push(`${event.violatedDirective} ${event.blockedURI}`);
+      });
+    });
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+
+    await page.goto("/settings-backup");
+    await expect(page.getByTestId("settings")).toBeVisible();
+    await page.getByTestId("backup-create").click();
+    await expect(page.getByTestId("backup-ready")).toBeVisible();
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("backup-download").click(),
+    ]);
+    await page.getByTestId("restore-file").setInputFiles(await download.path());
+    await expect(page.getByTestId("restore-summary")).toBeVisible();
+    await page.getByTestId("restore-preview").click();
+    await expect(page.getByTestId("restore-effects")).toBeVisible();
+
+    const violations = await page.evaluate(
+      () =>
+        (window as unknown as { __cspViolations: string[] }).__cspViolations,
+    );
+    expect(violations).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
   test("serves the expected build", async ({ page }) => {
     const expected = process.env["EXPECTED_BUILD_ID"];
     test.skip(!expected, "EXPECTED_BUILD_ID not set (local run)");

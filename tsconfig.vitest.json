@@ -10,7 +10,8 @@
     "src/**/*.vue",
     "tests/integration/**/*.ts",
     "tests/fixtures/**/*.ts",
-    "tests/support/**/*.ts"
+    "tests/support/**/*.ts",
+    "tests/browser/**/*.ts"
   ],
   "exclude": []
 }

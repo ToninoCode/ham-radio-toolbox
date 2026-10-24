@@ -136,6 +136,17 @@ export const ICONS = {
       "M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
     ],
   },
+  alert: {
+    paths: ["M12 3.5 2.5 20h19z", "M12 10v4.5", "M12 17.5h.01"],
+  },
+  check: { paths: ["M4.5 12.5l5 5 10-11"] },
+  plus: { paths: ["M12 5v14", "M5 12h14"] },
+  edit: { paths: ["M4 20h4L19 9l-4-4L4 16z", "M13.5 6.5l4 4"] },
+  trash: {
+    paths: ["M4 7h16", "M9 7V4h6v3", "M6.5 7l1 13h9l1-13", "M10 11v6M14 11v6"],
+  },
+  download: { paths: ["M12 4v11", "M7 10.5l5 5 5-5", "M5 20h14"] },
+  upload: { paths: ["M12 15V4", "M7 8.5l5-5 5 5", "M5 20h14"] },
 } as const satisfies Record<string, IconDefinition>;
 
 export type IconName = keyof typeof ICONS;

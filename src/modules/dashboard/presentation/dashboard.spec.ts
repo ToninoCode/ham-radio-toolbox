@@ -1,11 +1,23 @@
-import { createPinia, setActivePinia } from "pinia";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AppContainer } from "@/app/container";
+import {
+  DASHBOARD_PREFERENCES,
+  usePreferencesStore,
+} from "@/modules/settings-backup";
+import {
+  createStoreTestApp,
+  createTestContainer,
+} from "../../../../tests/support/app-services";
 import { mountWithApp } from "../../../../tests/support/mount-app";
+import { expectOk } from "../../../../tests/support/records";
 import { useDashboardStore } from "./dashboard-store";
 import DashboardView from "./views/DashboardView.vue";
 
 describe("dashboard store", () => {
-  beforeEach(() => setActivePinia(createPinia()));
+  let container: AppContainer;
+  beforeEach(() => {
+    container = createStoreTestApp().container;
+  });
 
   it("starts with all workspaces and no favourites", () => {
     const store = useDashboardStore();
@@ -21,6 +33,29 @@ describe("dashboard store", () => {
     expect(store.isFavorite("ham-logbook")).toBe(true);
     store.toggleFavorite("propagation");
     expect(store.favorites).toEqual(["ham-logbook"]);
+  });
+
+  it("persists favourites in settings, in pinning order (FR-DSH-03)", async () => {
+    const store = useDashboardStore();
+    store.toggleFavorite("propagation");
+    store.toggleFavorite("ham-logbook");
+    await vi.waitFor(async () =>
+      expect(
+        expectOk(
+          await container.repositories.settings.read(DASHBOARD_PREFERENCES),
+        ),
+      ).toEqual({ favorites: ["propagation", "ham-logbook"] }),
+    );
+  });
+
+  it("ignores stored ids of modules this version does not know", async () => {
+    expectOk(
+      await container.repositories.settings.write(DASHBOARD_PREFERENCES, {
+        favorites: ["future-module", "rf-calculators"],
+      }),
+    );
+    await usePreferencesStore().load();
+    expect(useDashboardStore().favorites).toEqual(["rf-calculators"]);
   });
 });
 
@@ -65,11 +100,16 @@ describe("DashboardView", () => {
     expect(ids).not.toContain("ham-logbook");
   });
 
-  it("pins and unpins favourites, stating that they are not saved yet", async () => {
-    const { wrapper } = await mountWithApp(DashboardView);
+  it("pins and unpins favourites, saved without any warning", async () => {
+    const container = createTestContainer();
+    const { wrapper } = await mountWithApp(DashboardView, { container });
+    await usePreferencesStore().load();
+    await wrapper.vm.$nextTick();
     const favorites = () => wrapper.find('[data-testid="favorites"]');
 
-    expect(favorites().text()).toContain("milestone M2");
+    expect(favorites().find('[data-testid="favorites-note"]').exists()).toBe(
+      false,
+    );
     expect(favorites().find('[data-testid="empty-state"]').exists()).toBe(true);
 
     const toggle = wrapper.find(

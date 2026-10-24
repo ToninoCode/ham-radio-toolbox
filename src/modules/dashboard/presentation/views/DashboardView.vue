@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
+import { usePreferencesStore } from "@/modules/settings-backup";
 import { useI18n } from "@/shared/i18n";
 import { useModuleCatalog } from "@/shared/modules";
 import {
@@ -19,7 +20,20 @@ import { useDashboardStore, type WorkspaceFilter } from "../dashboard-store";
 const { t } = useI18n();
 const catalog = useModuleCatalog();
 const store = useDashboardStore();
+const preferences = usePreferencesStore();
 const { favorites } = storeToRefs(store);
+
+/** What the user must know about saving the favourites, if anything. */
+const favoritesNote = computed(() => {
+  if (preferences.status === "unavailable") {
+    return t("dashboard.favorites.notPersisted");
+  }
+  if (preferences.saveError) return t("dashboard.favorites.notSaved");
+  if (preferences.invalid.includes("dashboard")) {
+    return t("dashboard.favorites.invalid");
+  }
+  return undefined;
+});
 
 const workspace = computed({
   get: () => store.workspace,
@@ -64,12 +78,25 @@ const favoriteModules = computed(() =>
         <AppIcon name="star" :size="22" />
         {{ t("dashboard.favorites.title") }}
       </h2>
-      <p class="flex items-start gap-2 text-sm text-fg-muted">
-        <AppIcon name="info" :size="18" />
-        {{ t("dashboard.favorites.notPersisted") }}
+      <div aria-live="polite">
+        <p
+          v-if="favoritesNote"
+          class="flex items-start gap-2 text-sm text-fg"
+          data-testid="favorites-note"
+        >
+          <span class="text-warning"><AppIcon name="alert" :size="18" /></span>
+          {{ favoritesNote }}
+        </p>
+      </div>
+      <p
+        v-if="preferences.status === 'loading' && favoriteModules.length === 0"
+        role="status"
+        class="text-sm text-fg-muted"
+      >
+        {{ t("dashboard.favorites.loading") }}
       </p>
       <EmptyState
-        v-if="favoriteModules.length === 0"
+        v-else-if="favoriteModules.length === 0"
         :title="t('dashboard.favorites.empty')"
         icon="star"
         compact

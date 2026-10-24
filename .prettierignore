@@ -5,8 +5,12 @@ coverage/
 playwright-report/
 test-results/
 blob-report/
+.vitest/
 .wrangler/
 
 # Generated or third-party files
 package-lock.json
 docs/references/
+
+# Backup fixtures: byte-exact files protected by checksums (ADR-0015)
+tests/fixtures/backup/

@@ -5,9 +5,30 @@ export {
   type Locale,
   type MessageCatalog,
 } from "./catalogs";
-export { formatUtcDate, formatUtcTime, toIsoUtcSeconds } from "./format";
+export {
+  errorKey,
+  errorMessage,
+  hasErrorMessage,
+  hasIssueMessage,
+  hasRuleMessage,
+  issueMessage,
+  persistenceMessage,
+  reportMessage,
+  ruleMessage,
+  technicalDetail,
+} from "./codes";
+export type { PersistenceErrorLike } from "./codes";
+export {
+  formatBytes,
+  formatPercent,
+  formatUtcDate,
+  formatUtcDateTime,
+  formatUtcTime,
+  toIsoUtcSeconds,
+} from "./format";
 export {
   createTranslator,
+  hasMessage,
   type MessageKey,
   type PlainMessageKey,
   type Translate,
