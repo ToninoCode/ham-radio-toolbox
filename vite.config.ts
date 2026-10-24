@@ -1,9 +1,17 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { it as messages } from "./src/shared/i18n/messages/it.ts";
+
+/** Version of the app, written in backups (`appVersion`, DATABASE.md § 9.1). */
+const APP_VERSION = (
+  JSON.parse(
+    readFileSync(new URL("./package.json", import.meta.url), "utf8"),
+  ) as { version: string }
+).version;
 
 /** Dark theme canvas (`--hrt-canvas`, THEME_COLORS.dark): icon and splash background. */
 const THEME_COLOR = "#0b1120";
@@ -29,6 +37,9 @@ function buildId(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+  },
   plugins: [
     vue(),
     tailwindcss(),

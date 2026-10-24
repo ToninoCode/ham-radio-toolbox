@@ -1,5 +1,6 @@
 export { AppDatabase, DATABASE_NAME } from "./app-database";
 export type { AppDatabaseOptions } from "./app-database";
+export { DexieBackupGateway } from "./dexie-backup-gateway";
 export { guard, toPersistenceError } from "./errors";
 export {
   ATTACHMENT_OWNER_TABLES,
@@ -12,6 +13,7 @@ export {
 } from "./integrity";
 export { toDexieUpgrade } from "./migrations/dexie-upgrade";
 export {
+  migrateRecord,
   migrateTableRecords,
   migrateTables,
 } from "./migrations/record-migration";

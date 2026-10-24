@@ -2,21 +2,28 @@
  * Application ports shared by the feature modules (ARCHITECTURE.md § 5.2):
  * persistence vocabulary and errors, unit of work, system ports, the
  * repositories of shared entities and the contracts of import, backup and
- * storage. No implementation lives here: adapters are in src/infrastructure
- * and are wired in src/app/container.ts.
+ * storage, plus the one shared use case, the generic import pipeline
+ * (BL-M2-07). Adapters are in src/infrastructure and are wired in
+ * src/app/container.ts.
  */
 export type {
   AttachmentRepository,
   NewAttachment,
 } from "./attachment-repository";
-export { BACKUP_FORMAT, BACKUP_FORMAT_VERSION } from "./backup";
 export type {
-  BackupEnvelope,
   BackupGateway,
+  BackupRecordSink,
+  DatabaseSnapshotInfo,
+  LocalDataState,
   MigrationError,
   RestoreMode,
+  RestoreWritePlan,
+  StoredRecord,
+  TableCounts,
   TableRecords,
 } from "./backup";
+export { createImportPipeline } from "./create-import-pipeline";
+export type { ImportPipelineDeps } from "./create-import-pipeline";
 export type {
   DatabaseLifecycle,
   DatabaseLifecycleEvent,
@@ -29,7 +36,33 @@ export type {
   ImportJobDraft,
   ImportJobRepository,
 } from "./import-job-repository";
-export type { ImportCandidate, ImportPreview } from "./import-pipeline";
+export type {
+  ConflictPolicy,
+  ImportCandidate,
+  ImportCommitOptions,
+  ImportError,
+  ImportFile,
+  ImportFileError,
+  ImportFileReader,
+  ImportFormat,
+  ImportFormatFailure,
+  ImportIssue,
+  ImportMatch,
+  ImportNotice,
+  ImportOutcome,
+  ImportPipeline,
+  ImportPreview,
+  ImportPreviewOptions,
+  ImportProgress,
+  ImportSummary,
+  ImportTarget,
+  ImportWriteDecision,
+  ParsedImport,
+  ParsedRecord,
+  TextEncodingName,
+} from "./import-pipeline";
+export { ABORTED, isAborted } from "./operation";
+export type { AbortedError } from "./operation";
 export {
   conflict,
   invalidInput,

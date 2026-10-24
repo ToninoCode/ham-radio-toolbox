@@ -52,4 +52,22 @@ export class DexieImportJobRepository implements ImportJobRepository {
       ),
     );
   }
+
+  findCommittedByFileSha256(
+    sha256: string,
+  ): Promise<Result<ImportJob[], PersistenceError>> {
+    // `fileSha256` is not indexed in schema v1: the job history is small
+    // (one row per import attempt), so a scan is enough.
+    return guard(TABLE, async () =>
+      ok(
+        await this.#db.import_jobs
+          .orderBy("startedAt")
+          .reverse()
+          .filter(
+            (job) => job.status === "committed" && job.fileSha256 === sha256,
+          )
+          .toArray(),
+      ),
+    );
+  }
 }

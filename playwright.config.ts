@@ -4,6 +4,7 @@ const PREVIEW_PORT = 4173;
 const PAGES_PORT = 8788;
 const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}`;
 const isCI = Boolean(process.env.CI);
+const BACKUP_SPEC = "**/backup-browser.spec.ts";
 
 /**
  * PAGES_URL points the `cloudflare-pages` project at a real deployment
@@ -16,6 +17,9 @@ const pagesUrl = process.env.PAGES_URL;
  * Test projects:
  * - desktop-chromium / android-tablet: the app on the production build served
  *   by `vite preview` (service worker, offline, update flow).
+ * - backup-chromium: backup and restore on a harness build in real Chromium
+ *   (tests/e2e/backup-browser.spec.ts). It starts after desktop-chromium, so
+ *   its heavy datasets never compete with the timed PWA update test.
  * - cloudflare-pages: hosting behaviour (public/_headers, SPA fallback, CSP)
  *   on `wrangler pages dev`, the official Pages emulator, or on PAGES_URL.
  *
@@ -40,12 +44,30 @@ export default defineConfig({
           {
             name: "desktop-chromium",
             testDir: "./tests/e2e",
+            testIgnore: BACKUP_SPEC,
             use: { ...devices["Desktop Chrome"], baseURL: PREVIEW_URL },
           },
           {
             name: "android-tablet",
             testDir: "./tests/e2e",
+            testIgnore: BACKUP_SPEC,
             use: { ...devices["Galaxy Tab S4"], baseURL: PREVIEW_URL },
+          },
+          {
+            name: "backup-chromium",
+            testDir: "./tests/e2e",
+            testMatch: BACKUP_SPEC,
+            dependencies: ["desktop-chromium"],
+            use: {
+              ...devices["Desktop Chrome"],
+              // Precise heap figures and gc() for the measurements.
+              launchOptions: {
+                args: [
+                  "--enable-precise-memory-info",
+                  "--js-flags=--expose-gc",
+                ],
+              },
+            },
           },
         ]),
     {

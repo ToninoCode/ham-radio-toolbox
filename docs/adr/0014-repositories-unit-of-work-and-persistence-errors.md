@@ -1,6 +1,6 @@
 # 0014 — Repository, UnitOfWork ed errori di persistenza
 
-- **Stato**: Proposto (da approvare con il Blocco B di M2)
+- **Stato**: Accettato (2026-10-24, approvazione del Blocco B di M2)
 - **Data**: 2026-10-24
 - **Milestone**: M2
 

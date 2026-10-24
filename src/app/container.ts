@@ -24,6 +24,8 @@ import type {
 } from "@/modules/settings-backup";
 import { DexieSwlReceptionRepository } from "@/modules/swl-logbook/infrastructure/dexie-swl-reception-repository";
 import type { SwlReceptionRepository } from "@/modules/swl-logbook";
+import type { BackupService } from "@/modules/settings-backup";
+import type { BackupLimits } from "@/modules/settings-backup/application/backup-service";
 import type {
   AttachmentRepository,
   Clock,
@@ -61,6 +63,14 @@ export interface AppContainer {
   readonly unitOfWork: UnitOfWork;
   readonly databaseLifecycle: DatabaseLifecycle;
   readonly repositories: AppRepositories;
+  /**
+   * Backup and restore use cases, loaded on first use (separate chunk,
+   * ADR-0015); later calls return the same instance.
+   */
+  loadBackupService(): Promise<BackupService>;
+  // TODO(M3): expose the generic import pipeline (createImportPipeline with
+  // blobImportFileReader) together with the first importer (ADIF, BL-M3-04);
+  // no module imports files before then.
   /** Opens the database and reports why it cannot be used, if so. */
   connect(): Promise<Result<void, PersistenceError>>;
   /** Closes the database connection. */
@@ -72,6 +82,8 @@ export interface ContainerOptions {
   readonly clock?: Clock;
   readonly ids?: IdGenerator;
   readonly contentHasher?: ContentHasher;
+  /** Backup limits (tests use small ones). */
+  readonly backupLimits?: Partial<BackupLimits>;
 }
 
 /**
@@ -83,12 +95,16 @@ export function createContainer(options: ContainerOptions = {}): AppContainer {
   const clock = options.clock ?? systemClock;
   const ids = options.ids ?? cryptoIdGenerator;
   const deps = { clock, ids };
+  const contentHasher = options.contentHasher ?? webCryptoContentHasher;
+  const unitOfWork = new DexieUnitOfWork(database);
+  const importJobs = new DexieImportJobRepository(database, deps);
+  let backupService: Promise<BackupService> | undefined;
 
   return {
     clock,
     ids,
-    contentHasher: options.contentHasher ?? webCryptoContentHasher,
-    unitOfWork: new DexieUnitOfWork(database),
+    contentHasher,
+    unitOfWork,
     databaseLifecycle: database,
     repositories: {
       stationProfiles: new DexieStationProfileRepository(database, deps),
@@ -98,7 +114,22 @@ export function createContainer(options: ContainerOptions = {}): AppContainer {
       qslRecords: new DexieQslRecordRepository(database, deps),
       attachments: new DexieAttachmentRepository(database, deps),
       dataSources: new DexieDataSourceRepository(database),
-      importJobs: new DexieImportJobRepository(database, deps),
+      importJobs,
+    },
+    loadBackupService() {
+      backupService ??= import("./backup-wiring").then((wiring) =>
+        wiring.createAppBackupService({
+          database,
+          unitOfWork,
+          importJobs,
+          clock,
+          ids,
+          contentHasher,
+          appVersion: __APP_VERSION__,
+          ...(options.backupLimits ? { limits: options.backupLimits } : {}),
+        }),
+      );
+      return backupService;
     },
     connect: () => database.connect(),
     dispose: () => database.close(),

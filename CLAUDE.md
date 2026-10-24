@@ -49,7 +49,7 @@ Struttura del repository (confermata in M0, dettagli in `docs/architecture/ARCHI
 ```
 src/
   app/                 # composition root: bootstrap, container DI, router, layout, pwa/ (registrazione SW)
-  shared/              # ui components, utils, i18n, types comuni, application/ (porte comuni: errori di persistenza, UnitOfWork, Clock…)
+  shared/              # ui components, utils, i18n, types comuni, application/ (porte comuni: errori di persistenza, UnitOfWork, Clock…, pipeline di import generica)
   core/                # domain condiviso: frequency, locator, time, callsign, reports, validation (zod), attachment, import-job, data-source
   modules/
     dashboard/
@@ -67,9 +67,9 @@ src/
     propagation/
     settings-backup/
   infrastructure/
-    db/                # AppDatabase, versioni di schema, migrazioni pure, UnitOfWork, integrità, repository condivisi
+    db/                # AppDatabase, versioni di schema, migrazioni pure, UnitOfWork, integrità, repository condivisi, gateway del backup
     providers/         # http client, registry, adapter fonti esterne
-    files/             # lettura/salvataggio file, hashing, limiti
+    files/             # lettura/salvataggio file, hashing (anche SHA-256 incrementale), base64, JSON canonico, limiti
     system/            # orologio e generatore di UUID (adattatori di Clock e IdGenerator)
     workers/           # Web Worker (parsing grandi file, passaggi satellitari)
 public/
@@ -79,11 +79,12 @@ scripts/               # script di sviluppo (icone, controlli sulla build)
 eslint/                # regole ESLint locali (confini fra moduli)
 .github/               # workflow CI/CD, Dependabot, ruleset di main
 tests/
-  integration/         # repository Dexie con fake-indexeddb (db/), container, test delle regole ESLint
+  integration/         # fake-indexeddb: repository (db/), pipeline di import (import/), backup e restore (backup/); container, regole ESLint
+  browser/             # pagine harness per Playwright in Chromium reale (backup-harness/)
   cloudflare/          # hosting: header, fallback SPA, CSP (emulatore Pages o deploy reale)
   support/             # setup Vitest e helper di mount
   e2e/                 # Playwright
-  fixtures/            # file di test ridotti e anonimizzati
+  fixtures/            # file di test ridotti e anonimizzati; backup/ = backup v1 da ripristinare a ogni versione (byte esatti: esclusi da Prettier)
 docs/                  # struttura decisa in ADR-0002
   PROJECT.md           # perimetro e obiettivi (riferimento primario)
   requirements/REQUIREMENTS.md   # requisiti, casi d'uso
@@ -156,7 +157,7 @@ npm run format         # Prettier (scrive)
 npm run format:check   # Prettier (solo verifica, usato in CI)
 npm run test           # Vitest (unit + integrazione)
 npm run test:watch     # Vitest in watch mode
-npm run test:e2e       # Playwright: app su vite preview (4173), hosting su wrangler pages dev (8788), aggiornamento PWA su 4174
+npm run test:e2e       # Playwright: app su vite preview (4173), hosting su wrangler pages dev (8788), aggiornamento PWA su 4174, harness backup su 4175 (progetto backup-chromium)
 npm run test:deployment # Playwright sul deploy reale: PAGES_URL=<url> [EXPECTED_BUILD_ID=<sha>]
 npm run icons          # rigenera le icone PWA in public/ (da versionare)
 ```

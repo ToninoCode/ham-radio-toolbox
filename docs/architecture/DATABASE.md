@@ -1,11 +1,11 @@
 # Modello dati e database — Ham Radio Toolbox v1
 
-| Campo                | Valore                                                                                                                                                                                                                                                                                                                    |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stato                | M0 — Progettazione · **M2 — schema v1 implementato** (Blocco B, 2026-10-24, in attesa di approvazione)                                                                                                                                                                                                                    |
-| Ultimo aggiornamento | 2026-10-24                                                                                                                                                                                                                                                                                                                |
-| Tecnologia           | IndexedDB tramite Dexie.js 4.x, validazione Zod 4.x                                                                                                                                                                                                                                                                       |
-| Documenti collegati  | [Architettura](ARCHITECTURE.md) · [Requisiti](../requirements/REQUIREMENTS.md) · [ADR-0005](../adr/0005-data-conventions.md) · [ADR-0006](../adr/0006-dexie-naming-and-migrations.md) · [ADR-0009](../adr/0009-attachments-in-indexeddb.md) · [ADR-0014](../adr/0014-repositories-unit-of-work-and-persistence-errors.md) |
+| Campo                | Valore                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stato                | M0 — Progettazione · **M2**: schema v1 approvato (Blocco B, 2026-10-24) · import, backup e restore implementati (Blocco C, 2026-10-24, in attesa di approvazione)                                                                                                                                                                                                                       |
+| Ultimo aggiornamento | 2026-10-24                                                                                                                                                                                                                                                                                                                                                                              |
+| Tecnologia           | IndexedDB tramite Dexie.js 4.x, validazione Zod 4.x                                                                                                                                                                                                                                                                                                                                     |
+| Documenti collegati  | [Architettura](ARCHITECTURE.md) · [Requisiti](../requirements/REQUIREMENTS.md) · [ADR-0005](../adr/0005-data-conventions.md) · [ADR-0006](../adr/0006-dexie-naming-and-migrations.md) · [ADR-0009](../adr/0009-attachments-in-indexeddb.md) · [ADR-0014](../adr/0014-repositories-unit-of-work-and-persistence-errors.md) · [ADR-0015](../adr/0015-backup-format-and-atomic-restore.md) |
 
 Questo documento definisce entità, tabelle, indici, relazioni, migrazioni, flussi di import e formato di backup. È il riferimento per M2; i moduli successivi possono **aggiungere** campi e tabelle solo tramite nuove versioni di schema.
 
@@ -486,45 +486,129 @@ flowchart LR
 | SatNOGS JSON  | 20 MB                     | Validazione Zod dei campi usati                                                                                                                                                                                          |
 | Raindrop HTML | 10 MB                     | `DOMParser`                                                                                                                                                                                                              |
 | CSV generico  | 10 MB                     | Parser CSV con mapping colonne                                                                                                                                                                                           |
-| Backup JSON   | 500 MB                    | Validazione per tabella                                                                                                                                                                                                  |
+| Backup JSON   | 100 MB (limite operativo) | Lettura progressiva con validazione per record (§ 9, [ADR-0015](../adr/0015-backup-format-and-atomic-restore.md)); 500 MB resta un obiettivo, non supportato in v1                                                       |
 
 ---
 
+### 8.1 Pipeline generica (M2, Blocco C)
+
+Implementata in `src/shared/application/create-import-pipeline.ts` (contratto in `import-pipeline.ts`); i formati reali arrivano con le milestone (ADIF M3, EiBi/HFCC M5, TLE/OMM/SatNOGS M8, Raindrop M9).
+
+| Elemento                 | Contratto                                                                                                                                                                                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ImportFormat<T>`        | `matches(file, head)` (identificazione da nome e primi 4 KB), `maxBytes`, `encoding`, `parse(text)` (record con posizione o `ignored` con codice), `normalize(data)` (core domain + Zod, issue `{ field, code }`).                                       |
+| `ImportTarget<T>`        | Fornito dal modulo proprietario: `identity` (duplicati nel file), `match` (solo letture: `new`, `duplicate`, `conflict` con `existingId`), `write(value, decision)` (`insert` o `replace`) nell'unità.                                                   |
+| `preview(file, formats)` | Limite di dimensione, SHA-256 del file, lettura (UTF-8 stretto), parsing, validazione, duplicati nel file e nel database, job precedenti con lo stesso hash (`previousImports`). Nessuna scrittura, interrompibile con `AbortSignal`.                    |
+| `commit(preview)`        | Una `UnitOfWork`: ripete `match` (anteprima superata → `import.preview-stale`), scrive il job `committed` e i record con `importJobId`. Errore come `Result` o eccezione → rollback e job `failed` scritto da solo; politica conflitti `skip`/`replace`. |
+| `cancel(preview)`        | Solo un job `cancelled`.                                                                                                                                                                                                                                 |
+
+Conteggi del job (schema v1 fisso): `duplicates` = ripetuti nel file + uguali al database + in conflitto; `skipped` = validi o ignorati non scritti, quindi `inserted + updated + skipped = valid + ignored`. Codici: `import.file-empty`, `import.file-too-large`, `import.file-unreadable`, `import.encoding-invalid`, `import.format-unknown`, `import.format-invalid`, `import.preview-stale`, `import.duplicate-in-file`, `operation.aborted`, più i `persistence.*`.
+
 ## 9. Backup e restore
 
-### 9.1 Formato
+Implementazione M2 (Blocco C) e decisioni in [ADR-0015](../adr/0015-backup-format-and-atomic-restore.md). Codice: formato e casi d'uso in `src/modules/settings-backup/` (dominio `backup-manifest.ts`, application `backup-service.ts`, `restore-planner.ts`, infrastructure `json-backup-codec.ts`), lato database `src/infrastructure/db/dexie-backup-gateway.ts` (porta `BackupGateway`). Il codice di backup è caricato a richiesta (`AppContainer.loadBackupService()`), fuori dal chunk iniziale.
+
+### 9.1 Formato v1
+
+Un unico oggetto JSON, codifica UTF-8 senza BOM. I membri della radice hanno un **ordine fisso**, parte del formato: intestazione (con `format` per primo), `counts`, `tables`, `integrity` per ultimo.
 
 ```jsonc
 {
   "format": "ham-radio-toolbox-backup",
-  "schemaVersion": 1, // versione dello schema Dexie al momento dell'export
   "backupFormatVersion": 1, // versione del contenitore
-  "appVersion": "0.3.0",
+  "schemaVersion": 1, // versione dello schema Dexie al momento dell'export
+  "appVersion": "0.2.0",
+  "backupId": "8e0c…", // UUID v4 del backup
   "exportedAt": "2026-10-17T13:21:00Z",
   "includesAttachments": true,
-  "tables": {
-    "station_profiles": [/* record */],
-    "qso_logs": [/* … */],
-    "attachments": [{ "id": "…", "mimeType": "audio/ogg", "dataBase64": "…" }],
+  "counts": {
+    "station_profiles": 1,
+    "qso_logs": 1234 /* … ogni tabella del file */,
   },
-  "counts": { "qso_logs": 1234 },
+  "tables": {
+    "station_profiles": [
+      { "callsign": "IZ1ABC", "createdAt": "…", "id": "…" /* … */ },
+    ],
+    "qso_logs": [/* un record per riga */],
+    "attachments": [
+      { "createdAt": "…", "dataBase64": "…", "fileName": "…" /* … */ },
+    ],
+  },
+  "integrity": {
+    "algorithm": "SHA-256",
+    "tables": { "station_profiles": "9f2c…", "qso_logs": "…" /* … */ },
+  },
 }
 ```
 
-- Tabelle incluse: quelle marcate ✅ nella [§ 2](#2-mappa-entità--tabelle); `broadcast_schedules` e `orbital_elements` opzionali (rigenerabili); cache escluse.
-- Allegati: inclusi come base64 solo se scelto dall'utente (aumentano il file di ~33 %). Per backup molto grandi si valuterà in M13 un contenitore ZIP (decisione con ADR).
-- Il file è scaricato con nome `hrt-backup-YYYYMMDD-HHMMZ.json`.
+| Regola            | Dettaglio                                                                                                                                                                                                                                                                                 |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tabelle           | Tutte quelle della [§ 2](#2-mappa-entità--tabelle) marcate ✅ per la versione dello schema (v1: le 9 tabelle), nell'ordine di `TABLE_NAMES`, anche vuote. `attachments` presente **solo** se `includesAttachments: true`.                                                                 |
+| Record            | Validati con lo schema dell'entità prima dell'export (un record non valido blocca il backup: `backup.source-invalid`). JSON canonico: chiavi in ordine lessicografico, nessuno spazio, un record per riga; record ordinati per chiave primaria. Stessi dati → stesso testo delle tabelle. |
+| Allegati          | Metadati della tabella `attachments` più `dataBase64` (RFC 4648, alfabeto standard, con padding, canonico) al posto del `Blob`. Inclusi solo su scelta esplicita ([ADR-0009](../adr/0009-attachments-in-indexeddb.md)); +33 % di dimensione.                                              |
+| `counts`          | Numero di record di ogni tabella del file; deve coincidere con i record letti.                                                                                                                                                                                                            |
+| `integrity`       | SHA-256 dei byte UTF-8 dell'array di ogni tabella esattamente come scritto, da `[` a `]`. Rileva corruzione e troncamento; **non** è una firma: chi modifica il file può ricalcolarlo.                                                                                                    |
+| Campi sconosciuti | Rifiutati alla radice (`backup.unknown-field`), nei record (schemi `strictObject`) e nel manifest.                                                                                                                                                                                        |
+| Nome del file     | `hrt-backup-YYYYMMDD-HHMMZ.json` (UTC, da `exportedAt`).                                                                                                                                                                                                                                  |
+| Fixture           | `tests/fixtures/backup/v1-basic.json`: sintetica, deve restare ripristinabile da ogni versione futura dell'app. Esclusa da Prettier e da conversioni di fine riga (`.gitattributes`).                                                                                                     |
+
+Rispetto alla bozza di M0 (stesso contenitore e stessi nomi): `counts` precede `tables`, si aggiungono `backupId` e `integrity`, l'ordine dei membri è fissato. Il formato non è ancora stato rilasciato, quindi `backupFormatVersion` resta 1.
 
 ### 9.2 Restore
 
-1. Validazione dell'involucro (`format`, versioni).
-2. `schemaVersion > corrente` → rifiuto ("aggiorna l'app").
-3. `schemaVersion < corrente` → applicazione in memoria delle funzioni di migrazione `vN → vN+1` in sequenza.
-4. Validazione Zod di ogni record; errori riportati per tabella/id.
-5. Anteprima conteggi; modalità **sostituisci** (svuota le tabelle utente) o **unisci** (upsert per `id`, il record con `updatedAt` più recente vince).
-6. Commit in un'unica transazione su tutte le tabelle coinvolte; registrazione in `import_jobs` (`kind: 'backup'`).
+| Fase                   | Cosa avviene                                                                                                                                                                                                                                                                                                       | Scritture |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| 1. Limiti              | File vuoto → `backup.empty`; oltre il limite operativo → `backup.too-large` (prima di leggere).                                                                                                                                                                                                                    | —         |
+| 2. Identificazione     | Lettura in streaming con decodifica UTF-8 stretta; radice oggetto con `format` per primo e valore corretto, altrimenti `backup.not-a-backup`.                                                                                                                                                                      | —         |
+| 3. Manifest e versioni | `backupFormatVersion` diverso da 1 → `backup.format-version-unsupported`; manifest validato con Zod; `schemaVersion` più recente → `backup.schema-newer` ("aggiorna l'app"); passi di migrazione mancanti → `backup.migration-unavailable`; tabelle dichiarate coerenti con lo schema e con `includesAttachments`. | —         |
+| 4. Record              | Ogni record: `JSON.parse` singolo, migrazioni pure `vN → vN+1` record per record (`null` = scartato), schema dell'entità; allegati decodificati, dimensione entro il limite, SHA-256 confrontato. Errori per tabella/indice/campo con codici stabili (primi 500).                                                  | —         |
+| 5. Integrità           | Conteggi per tabella (`backup.count-mismatch`), tabelle mancanti (`backup.table-missing`), checksum (`backup.checksum-mismatch`), membro `integrity` assente (`backup.integrity-missing`).                                                                                                                         | —         |
+| 6. Riferimenti         | Chiavi duplicate, un solo profilo predefinito, riferimenti interni al backup e regole di unicità di § 6 (stessi codici dei repository). Con errori il backup non è ripristinabile (`backup.has-errors`).                                                                                                           | —         |
+| 7. Anteprima           | Lettura dello stato locale e piano: per ogni tabella inseriti, aggiornati, eliminati, invariati, scartati, più i conflitti.                                                                                                                                                                                        | —         |
+| 8. Conferma            | `commitRestore(preview)`: esplicita, oppure `cancelRestore` (job `cancelled`).                                                                                                                                                                                                                                     | —         |
+| 9. Commit              | Una `UnitOfWork` su tutte le tabelle: rilettura dello stato locale e ricalcolo del piano (diverso → `backup.preview-stale`), svuotamento/eliminazioni/scritture, **verifica dei conteggi dentro la transazione** (`backup.verification-failed`), job `committed` (`kind: 'backup'`).                               | Atomiche  |
+| 10. Esito              | Effetti per tabella e conteggi verificati. Un fallimento annulla tutto e scrive un job `failed` da solo.                                                                                                                                                                                                           | Job       |
 
-Test obbligatori: round-trip identico; restore di un backup v1 dopo ogni nuova versione di schema (fixture conservate in `tests/fixtures/backup/`).
+Modalità:
+
+- **Sostituisci** (default): le tabelle del backup vengono svuotate e riempite **nella stessa transazione**, mai prima. Senza allegati nel backup, gli allegati locali il cui proprietario esiste ancora dopo il restore restano; gli altri (sarebbero orfani) vengono eliminati.
+- **Unisci**: upsert per chiave, nulla di locale viene eliminato tranne i dettagli di una ricezione presa dal backup (ricezione e dettagli sono un aggregato). Il record del backup sostituisce quello locale solo se ha `updatedAt` più recente; per `attachments` (immutabili), `data_sources` e `import_jobs` vince il locale. Il profilo predefinito locale resta l'unico predefinito. Record che violerebbero un'unicità (QSL per soggetto e canale, allegato con lo stesso contenuto sullo stesso proprietario, soggetto QSL cambiato) vengono scartati e riportati come conflitti, con gli allegati di una QSL scartata.
+
+I record ripristinati restano identici a quelli esportati (anche `origin` e `importJobId`): il round-trip è identico (NFR-REL-04). Il job del restore registra in `options` `mode`, `backupId`, `backupExportedAt`, `backupSchemaVersion`, `backupAppVersion`, `includesAttachments`, `deleted`, `conflicts`; `fileSha256` non è calcolato (servirebbe un secondo hash completo del file), il backup si riconosce dal `backupId`.
+
+### 9.3 Compatibilità
+
+| Caso                          | Comportamento                                                                                                                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backup di schema precedente   | Migrato in memoria record per record con le stesse funzioni pure dell'upgrade Dexie (§ 7), poi validato.                                                                      |
+| Backup di schema più recente  | Rifiutato (`backup.schema-newer`), nessuna lettura dei record.                                                                                                                |
+| `backupFormatVersion` diverso | Rifiutato (`backup.format-version-unsupported`). Un nuovo contenitore (es. ZIP, M13) avrà un lettore proprio.                                                                 |
+| Nuove tabelle (v2+)           | `BackupGateway.tablesOf(schemaVersion)` dice quali tabelle aspettarsi; quelle assenti in un backup vecchio restano vuote.                                                     |
+| Fixture                       | `tests/fixtures/backup/v1-basic.json` si ripristina a ogni versione (test obbligatorio); il confronto byte per byte con il writer vale finché il formato è v1 e lo schema v1. |
+
+### 9.4 Limiti operativi e memoria
+
+| Elemento                          | Limite (configurabile)                             | Motivo                                                                                  |
+| --------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| File di backup (export e restore) | 100 MB (`DEFAULT_MAX_BACKUP_BYTES`)                | Il restore tiene in memoria tutti i record validati fino al commit (transazione unica). |
+| Record                            | 1 MiB di testo; allegati: base64 di 20 MB + 64 KiB | Nessun record può far crescere la memoria senza limite durante la lettura.              |
+| Membri dell'intestazione          | 64 KiB                                             | Idem.                                                                                   |
+| Errori riportati                  | 500 (poi `errorsTruncated`)                        | Come `import_jobs.errors`.                                                              |
+
+Prima di generare un backup con allegati si stima la dimensione (somma di `sizeBytes` × 4/3) e si rifiuta subito un backup oltre il limite (`backup.export-too-large`, con il suggerimento di escludere gli allegati); durante la scrittura il limite è ricontrollato. Misure e motivazione del limite in [ADR-0015](../adr/0015-backup-format-and-atomic-restore.md); il supporto oltre il limite (fino ai 500 MB di § 8) richiede il restore con staging proposto per M13.
+
+### 9.5 Procedure di recupero
+
+| Situazione                                            | Stato dei dati                                                                                                        | Cosa fare                                                                         |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| File non valido, corrotto o troncato                  | Nessuna scrittura (fasi 1–6).                                                                                         | Usare un'altra copia del backup; il codice d'errore indica tabella e motivo.      |
+| Restore fallito durante il commit (quota, errore)     | Transazione annullata: dati locali invariati, job `failed` con il codice.                                             | Liberare spazio o ripetere; la quota si verifica in Impostazioni (Blocco D).      |
+| App o scheda chiusa durante il commit                 | IndexedDB annulla la transazione: dati locali invariati (verificato su Chromium, `tests/e2e/backup-browser.spec.ts`). | Ripetere il restore.                                                              |
+| Anteprima superata (dati cambiati in un'altra scheda) | Nessuna scrittura (`backup.preview-stale`).                                                                           | Ripetere l'anteprima.                                                             |
+| Interruzione volontaria (`AbortSignal`)               | Ammessa solo fuori dalle transazioni: nessuna scrittura.                                                              | —                                                                                 |
+| Backup oltre il limite                                | Nessuna scrittura.                                                                                                    | Backup senza allegati; oltre 100 MB anche senza allegati: residuo (staging, M13). |
+
+Nessuna risorsa temporanea persistente: export e restore non usano tabelle o database di appoggio; in caso di errore si rilasciano i riferimenti alle parti di `Blob` e allo stream del file.
 
 ---
 
@@ -538,31 +622,39 @@ Test obbligatori: round-trip identico; restore di un backup v1 dopo ogni nuova v
 
 I test di integrazione usano `fake-indexeddb` (implementazione in memoria della specifica IndexedDB) in Node. Non sostituiscono il collaudo su Chrome per Android, che resta da eseguire (Blocco D e M13):
 
-| #   | Verifica                                                                                                                                     | Perché fake-indexeddb non basta                                                                      |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 1   | Quota esaurita reale (allegati grandi fino al riempimento) con rollback e messaggio                                                          | La quota è simulata facendo fallire una richiesta; nei browser l'errore può arrivare anche al commit |
-| 2   | Persistenza dopo chiusura dell'app installata, riavvio del tablet e pulizia della cache di sistema; effetto di `navigator.storage.persist()` | Il database di test vive in memoria per la durata del test                                           |
-| 3   | Allegati audio/immagini da 10–20 MB: scrittura, lettura, memoria usata                                                                       | In Node i Blob sono clonati in memoria; nei browser sono su disco                                    |
-| 4   | Due schede con versioni diverse dell'app: `versionchange` e `blocked` con l'avviso del Blocco D                                              | Gli eventi sono simulati con due connessioni nello stesso processo                                   |
-| 5   | Tempi di transazione con molti record (es. 10 000 QSO in un'unità), interfaccia reattiva                                                     | Prestazioni e chiusura automatica delle transazioni dipendono dal motore del browser                 |
-| 6   | Navigazione privata / storage bloccato: errore `persistence.unavailable` mostrato in modo comprensibile                                      | Il caso è simulato con una factory IndexedDB che rifiuta l'apertura                                  |
+| #   | Verifica                                                                                                                                        | Perché fake-indexeddb non basta                                                                                             |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Quota esaurita reale (allegati grandi fino al riempimento) con rollback e messaggio                                                             | La quota è simulata facendo fallire una richiesta; nei browser l'errore può arrivare anche al commit                        |
+| 2   | Persistenza dopo chiusura dell'app installata, riavvio del tablet e pulizia della cache di sistema; effetto di `navigator.storage.persist()`    | Il database di test vive in memoria per la durata del test                                                                  |
+| 3   | Allegati audio/immagini da 10–20 MB: scrittura, lettura, memoria usata                                                                          | In Node i Blob sono clonati in memoria; nei browser sono su disco                                                           |
+| 4   | Due schede con versioni diverse dell'app: `versionchange` e `blocked` con l'avviso del Blocco D                                                 | Gli eventi sono simulati con due connessioni nello stesso processo                                                          |
+| 5   | Tempi di transazione con molti record (es. 10 000 QSO in un'unità), interfaccia reattiva                                                        | Prestazioni e chiusura automatica delle transazioni dipendono dal motore del browser                                        |
+| 6   | Navigazione privata / storage bloccato: errore `persistence.unavailable` mostrato in modo comprensibile                                         | Il caso è simulato con una factory IndexedDB che rifiuta l'apertura                                                         |
+| 7   | Backup e restore fino al limite operativo (100 MB, con soli record e con allegati): tempi, reattività dell'interfaccia, memoria e _blob storage | Misurati su Chromium desktop ([ADR-0015](../adr/0015-backup-format-and-atomic-restore.md)); un tablet ha meno memoria e CPU |
+| 8   | Download del backup (nome, Web Share) e scelta del file da ripristinare dal file system Android                                                 | Interfaccia del Blocco D                                                                                                    |
 
 ---
 
-## 11. Differenze e precisazioni emerse nell'implementazione (M2, Blocco B)
+## 11. Differenze e precisazioni emerse nell'implementazione (M2, Blocchi B e C)
 
-Nessuna tabella, colonna o relazione è stata aggiunta rispetto a § 3 e § 5. Le voci seguenti chiariscono punti ambigui o rinviano regole alla milestone che le usa.
+Nessuna tabella, colonna o relazione è stata aggiunta rispetto a § 3 e § 5 (nemmeno nel Blocco C: lo schema v1 è invariato). Le voci seguenti chiariscono punti ambigui o rinviano regole alla milestone che le usa.
 
-| #     | Punto                                                                                                                                 | Scelta in M2                                                                                                                                                        |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DB-1  | § 1 dice che ogni entità utente ha `createdAt` e `updatedAt`; la tabella `attachments` (§ 3) elenca solo `createdAt`.                 | Prevale § 3: gli allegati sono immutabili (un nuovo file è una nuova riga), quindi niente `updatedAt`.                                                              |
-| DB-2  | `qsl_records.subjectType` usa `'swl'`, `attachments.ownerType` usa `'swl_reception'` per la stessa entità.                            | Valori mantenuti come documentati (fanno parte del formato di backup); la corrispondenza è in `integrity.ts`.                                                       |
-| DB-3  | "Esattamente un profilo con `isDefault: 1`" non dice cosa accade a zero profili, al primo profilo e all'eliminazione del predefinito. | Vincolo valido quando esiste almeno un profilo; regole in § 6.                                                                                                      |
-| DB-4  | `reception_details.category` "deve coincidere con la ricezione": non è detto come si cambia la categoria.                             | Ricezione e dettagli formano un aggregato scritto in un'unica transazione; il cambio di categoria richiede nuovi dettagli (§ 6).                                    |
-| DB-5  | `attachments.ownerType: 'resource'` è nello schema v1, ma `resources` arriva con la v5.                                               | Valore accettato dallo schema, allegato rifiutato dal repository finché la tabella non esiste (M9).                                                                 |
-| DB-6  | `qso_logs.band` è "derivata" e `mode` è "enumerazione ADIF"; `swl_receptions.band` è derivata.                                        | In M2 si controlla solo il formato (`20m`, `70cm`, modo in maiuscolo). Derivazione dal band plan ed enumerazioni ADIF in M3 (BL-M3-01); banda SWL in M4.            |
-| DB-7  | `lat`/`lon` "derivati dal locator se non forniti" (`station_profiles`, `qso_logs`).                                                   | Nessuna derivazione automatica in M2; lo schema richiede `lat` e `lon` insieme e `positionSource` solo con una posizione. Derivazione nei casi d'uso dei form (M3). |
-| DB-8  | Campi opzionali "assenti, non `null`": una form produce stringhe vuote.                                                               | I campi di testo opzionali vuoti diventano assenti; i campi `undefined` vengono rimossi prima della scrittura (round-trip del backup identico).                     |
-| DB-9  | § 6 non prevede l'eliminazione di `import_jobs` diversi dai palinsesti.                                                               | Nessuna eliminazione dei job in v1 (storico per FR-SET-07); l'eliminazione di un dataset di palinsesto arriva con `broadcast_schedules` (M5).                       |
-| DB-10 | Dexie 4 apre un database con versione più recente di quella dichiarata.                                                               | L'app lo rifiuta (`newer-version`, § 7).                                                                                                                            |
-| DB-11 | Le regole fra campi (es. `datetimeOff ≥ datetimeOn`) sono riportate da Zod solo se i singoli campi sono validi.                       | Comportamento accettato: i report di validazione (form, import) mostrano gli errori dei campi e poi quelli fra campi.                                               |
+| #     | Punto                                                                                                                                 | Scelta in M2                                                                                                                                                                              |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DB-1  | § 1 dice che ogni entità utente ha `createdAt` e `updatedAt`; la tabella `attachments` (§ 3) elenca solo `createdAt`.                 | Prevale § 3: gli allegati sono immutabili (un nuovo file è una nuova riga), quindi niente `updatedAt`.                                                                                    |
+| DB-2  | `qsl_records.subjectType` usa `'swl'`, `attachments.ownerType` usa `'swl_reception'` per la stessa entità.                            | Valori mantenuti come documentati (fanno parte del formato di backup); la corrispondenza è in `integrity.ts`.                                                                             |
+| DB-3  | "Esattamente un profilo con `isDefault: 1`" non dice cosa accade a zero profili, al primo profilo e all'eliminazione del predefinito. | Vincolo valido quando esiste almeno un profilo; regole in § 6.                                                                                                                            |
+| DB-4  | `reception_details.category` "deve coincidere con la ricezione": non è detto come si cambia la categoria.                             | Ricezione e dettagli formano un aggregato scritto in un'unica transazione; il cambio di categoria richiede nuovi dettagli (§ 6).                                                          |
+| DB-5  | `attachments.ownerType: 'resource'` è nello schema v1, ma `resources` arriva con la v5.                                               | Valore accettato dallo schema, allegato rifiutato dal repository finché la tabella non esiste (M9).                                                                                       |
+| DB-6  | `qso_logs.band` è "derivata" e `mode` è "enumerazione ADIF"; `swl_receptions.band` è derivata.                                        | In M2 si controlla solo il formato (`20m`, `70cm`, modo in maiuscolo). Derivazione dal band plan ed enumerazioni ADIF in M3 (BL-M3-01); banda SWL in M4.                                  |
+| DB-7  | `lat`/`lon` "derivati dal locator se non forniti" (`station_profiles`, `qso_logs`).                                                   | Nessuna derivazione automatica in M2; lo schema richiede `lat` e `lon` insieme e `positionSource` solo con una posizione. Derivazione nei casi d'uso dei form (M3).                       |
+| DB-8  | Campi opzionali "assenti, non `null`": una form produce stringhe vuote.                                                               | I campi di testo opzionali vuoti diventano assenti; i campi `undefined` vengono rimossi prima della scrittura (round-trip del backup identico).                                           |
+| DB-9  | § 6 non prevede l'eliminazione di `import_jobs` diversi dai palinsesti.                                                               | Nessuna eliminazione dei job in v1 (storico per FR-SET-07); l'eliminazione di un dataset di palinsesto arriva con `broadcast_schedules` (M5).                                             |
+| DB-10 | Dexie 4 apre un database con versione più recente di quella dichiarata.                                                               | L'app lo rifiuta (`newer-version`, § 7).                                                                                                                                                  |
+| DB-11 | Le regole fra campi (es. `datetimeOff ≥ datetimeOn`) sono riportate da Zod solo se i singoli campi sono validi.                       | Comportamento accettato: i report di validazione (form, import) mostrano gli errori dei campi e poi quelli fra campi.                                                                     |
+| DB-12 | La bozza di § 9.1 metteva `counts` dopo `tables` e non prevedeva identificativo né checksum.                                          | Formato v1 precisato ([ADR-0015](../adr/0015-backup-format-and-atomic-restore.md)): ordine fisso dei membri, `backupId`, `integrity` per tabella; stesso contenitore e stessi nomi.       |
+| DB-13 | `qso_logs.origin` prevede `'restore'`.                                                                                                | Il restore non cambia i record (round-trip identico, NFR-REL-04): `'restore'` resta inutilizzato in v1.                                                                                   |
+| DB-14 | `import_jobs.counts` ha campi fissi; anteprima e restore distinguono anche conflitti, ignorati ed eliminati.                          | Corrispondenza documentata in § 8.1 e § 9.2; eliminati e conflitti del restore nelle `options` del job.                                                                                   |
+| DB-15 | `import_jobs.fileSha256` "rileva il re-import dello stesso file".                                                                     | Calcolato dalla pipeline di import; non per il restore (secondo hash completo di un file fino a 100 MB): il backup si riconosce dal `backupId` nelle `options`.                           |
+| DB-16 | § 9.2 diceva "il record con `updatedAt` più recente vince" senza coprire tabelle senza `updatedAt`, aggregati e profilo predefinito.  | Regole complete di _unisci_ in § 9.2: vince il locale per `attachments`, `data_sources`, `import_jobs`; i dettagli seguono la ricezione; resta il predefinito locale; conflitti scartati. |
+| DB-17 | § 8 proponeva 500 MB per il backup.                                                                                                   | Limite operativo verificato di 100 MB; oltre serve il restore con staging (M13, ADR-0015).                                                                                                |

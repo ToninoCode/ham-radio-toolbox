@@ -17,4 +17,11 @@ export interface ImportJobRepository {
   get(id: string): Promise<Result<ImportJob, PersistenceError>>;
   /** Most recent jobs first (by `startedAt`). */
   listRecent(limit: number): Promise<Result<ImportJob[], PersistenceError>>;
+  /**
+   * Committed jobs of a file with this SHA-256, most recent first: warns
+   * about importing the same file again (DATABASE.md `import_jobs`).
+   */
+  findCommittedByFileSha256(
+    sha256: string,
+  ): Promise<Result<ImportJob[], PersistenceError>>;
 }

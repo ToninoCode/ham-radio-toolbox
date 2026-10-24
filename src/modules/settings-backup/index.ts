@@ -32,3 +32,21 @@ export type {
   StationProfilePatch,
   StationProfileRepository,
 } from "./application/ports";
+
+// Backup and restore (M2, Block C): contracts only. The implementation is
+// loaded lazily through AppContainer.loadBackupService() (ADR-0015).
+export type {
+  BackupContent,
+  BackupError,
+  BackupFile,
+  BackupFileError,
+  BackupService,
+  InvalidStoredRecord,
+  RestoreAnalysis,
+  RestoreConflict,
+  RestoreOutcome,
+  RestorePlan,
+  RestorePreview,
+  TableEffects,
+} from "./application/backup-ports";
+export type { BackupIntegrity, BackupManifest } from "./domain/backup-manifest";
