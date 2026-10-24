@@ -269,6 +269,25 @@ export default defineConfig(
     },
   },
   {
+    // Ports shared by the modules (ARCHITECTURE.md § 5.2): application rules
+    // plus the restrictions of shared code (no feature modules).
+    name: "layers/shared-application",
+    files: ["src/shared/application/**"],
+    rules: {
+      ...restrictImports(
+        forbid.dexie,
+        forbid.vue,
+        forbid.infrastructure,
+        forbid.providers,
+        forbid.presentation,
+        forbid.appRoot,
+        forbid.sharedPresentation,
+        forbid.modules,
+      ),
+      ...restrictBrowserGlobals,
+    },
+  },
+  {
     name: "layers/presentation",
     files: PRESENTATION_FILES,
     rules: restrictImports(

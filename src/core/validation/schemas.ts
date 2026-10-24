@@ -1,3 +1,5 @@
+// Must stay first: configures Zod before any schema is built.
+import "./zod-config";
 import { z } from "zod";
 import { ok } from "@/shared/types";
 import { parseCallsign } from "@/core/callsign";
@@ -113,22 +115,104 @@ export const indexedFlagSchema = z.union([z.literal(0), z.literal(1)]);
 /** `isSample: 1` on demonstration records (FR-GEN-04); absent otherwise. */
 export const sampleFlagSchema = z.literal(1).optional();
 
+/**
+ * Adds a domain-coded issue at `path` from a refinement (same shape as the
+ * issues of {@link domainSchema}: `message` and `params.code` are the code).
+ */
+export function addDomainIssue(
+  ctx: z.RefinementCtx,
+  path: readonly PropertyKey[],
+  code: string,
+): void {
+  ctx.addIssue({
+    code: "custom",
+    path: [...path],
+    message: code,
+    params: { code },
+  });
+}
+
+/**
+ * Refinement: `end`, when present, is not earlier than `start` (UTC
+ * instants compare as strings). Issue on `endKey`.
+ */
+export function checkNotBefore<K extends string>(
+  value: Readonly<Partial<Record<K, string>>>,
+  startKey: K,
+  endKey: K,
+  ctx: z.RefinementCtx,
+  code: string,
+): void {
+  const start = value[startKey];
+  const end = value[endKey];
+  if (start !== undefined && end !== undefined && end < start) {
+    addDomainIssue(ctx, [endKey], code);
+  }
+}
+
+/**
+ * Refinement: the listed fields are all present or all absent (e.g. `lat`
+ * and `lon`). Issue `fields.incomplete-group` on each missing field.
+ */
+export function checkTogether<K extends string>(
+  value: Readonly<Partial<Record<K, unknown>>>,
+  keys: readonly K[],
+  ctx: z.RefinementCtx,
+): void {
+  const present = keys.filter((key) => value[key] !== undefined);
+  if (present.length === 0 || present.length === keys.length) return;
+  for (const key of keys) {
+    if (value[key] === undefined) {
+      addDomainIssue(ctx, [key], "fields.incomplete-group");
+    }
+  }
+}
+
+/** Fields of {@link timestampsSchema}, for entity schemas that extend it. */
+export const timestampFields = {
+  createdAt: utcDateTimeSchema,
+  updatedAt: utcDateTimeSchema,
+};
+
+/** Refinement of {@link timestampsSchema}: `updatedAt ≥ createdAt`. */
+export function checkTimestamps(
+  value: { readonly createdAt: string; readonly updatedAt: string },
+  ctx: z.RefinementCtx,
+): void {
+  checkNotBefore(
+    value,
+    "createdAt",
+    "updatedAt",
+    ctx,
+    "timestamps.updated-before-created",
+  );
+}
+
 /** `createdAt` / `updatedAt` of every user entity, `updatedAt ≥ createdAt`. */
 export const timestampsSchema = z
-  .object({
-    createdAt: utcDateTimeSchema,
-    updatedAt: utcDateTimeSchema,
-  })
-  .superRefine((value, ctx) => {
-    if (value.updatedAt < value.createdAt) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["updatedAt"],
-        message: "timestamps.updated-before-created",
-        params: { code: "timestamps.updated-before-created" },
-      });
-    }
+  .object(timestampFields)
+  .superRefine(checkTimestamps);
+
+// --- Free text --------------------------------------------------------------
+
+/** Required text: trimmed, not empty (`text.empty`). */
+export const textSchema = z
+  .string()
+  .trim()
+  .refine((text) => text !== "", {
+    message: "text.empty",
+    params: { code: "text.empty" },
   });
+
+/**
+ * Optional text: trimmed; an empty string (blank form field) becomes
+ * absent, never `""` (DATABASE.md § 1: optional fields are absent).
+ */
+export const optionalTextSchema = z
+  .string()
+  .trim()
+  .transform((text) => (text === "" ? undefined : text))
+  .optional();
 
 /** Provenance of imported records: source and import job (DATABASE.md § 1). */
 export const provenanceSchema = z.object({

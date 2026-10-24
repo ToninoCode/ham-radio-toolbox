@@ -1,11 +1,11 @@
 # Modello dati e database — Ham Radio Toolbox v1
 
-| Campo                | Valore                                                                                                                                                                                                                                      |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stato                | M0 — Progettazione (implementazione in M2)                                                                                                                                                                                                  |
-| Ultimo aggiornamento | 2026-10-17                                                                                                                                                                                                                                  |
-| Tecnologia           | IndexedDB tramite Dexie.js 4.x, validazione Zod 4.x                                                                                                                                                                                         |
-| Documenti collegati  | [Architettura](ARCHITECTURE.md) · [Requisiti](../requirements/REQUIREMENTS.md) · [ADR-0005](../adr/0005-data-conventions.md) · [ADR-0006](../adr/0006-dexie-naming-and-migrations.md) · [ADR-0009](../adr/0009-attachments-in-indexeddb.md) |
+| Campo                | Valore                                                                                                                                                                                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stato                | M0 — Progettazione · **M2 — schema v1 implementato** (Blocco B, 2026-10-24, in attesa di approvazione)                                                                                                                                                                                                                    |
+| Ultimo aggiornamento | 2026-10-24                                                                                                                                                                                                                                                                                                                |
+| Tecnologia           | IndexedDB tramite Dexie.js 4.x, validazione Zod 4.x                                                                                                                                                                                                                                                                       |
+| Documenti collegati  | [Architettura](ARCHITECTURE.md) · [Requisiti](../requirements/REQUIREMENTS.md) · [ADR-0005](../adr/0005-data-conventions.md) · [ADR-0006](../adr/0006-dexie-naming-and-migrations.md) · [ADR-0009](../adr/0009-attachments-in-indexeddb.md) · [ADR-0014](../adr/0014-repositories-unit-of-work-and-persistence-errors.md) |
 
 Questo documento definisce entità, tabelle, indici, relazioni, migrazioni, flussi di import e formato di backup. È il riferimento per M2; i moduli successivi possono **aggiungere** campi e tabelle solo tramite nuove versioni di schema.
 
@@ -13,26 +13,26 @@ Questo documento definisce entità, tabelle, indici, relazioni, migrazioni, flus
 
 ## 1. Convenzioni
 
-| Ambito               | Regola                                                                                                                                                                   |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Nomi tabelle         | `snake_case` plurale (`qso_logs`).                                                                                                                                       |
-| Nomi campi           | `camelCase` (`frequencyHz`), identici al tipo TypeScript: nessun mapping fra DB e dominio ([ADR-0006](../adr/0006-dexie-naming-and-migrations.md), da confermare in M2). |
-| Chiave primaria      | `id: string` UUID v4 da `crypto.randomUUID()`. Eccezioni: `settings` (chiave stringa `key`).                                                                             |
-| Frequenze            | `number` intero in **Hz** (suffisso `Hz`). `Number.isSafeInteger` garantito fino a ~9 PHz.                                                                               |
-| Toni sub-audio       | Intero in **decimi di Hz** (suffisso `DeciHz`: 88,5 Hz → `885`). Eccezione motivata in [ADR-0005](../adr/0005-data-conventions.md).                                      |
-| Date/ore             | Stringa ISO 8601 UTC con `Z`, precisione al secondo (`2026-10-17T13:21:00Z`). Ordinabile lessicograficamente → indicizzabile.                                            |
-| Orari di palinsesto  | Minuti dal 00:00 UTC (`0..1440`).                                                                                                                                        |
-| Date senza ora       | `YYYY-MM-DD` (es. validità di un palinsesto).                                                                                                                            |
-| Coordinate           | `lat`, `lon` in gradi decimali WGS84 (`lat ∈ [-90, 90]`, `lon ∈ [-180, 180)`).                                                                                           |
-| Locator              | Maidenhead normalizzato: campo e quadrato maiuscoli, sottoquadrato minuscolo (`JN45dl`).                                                                                 |
-| Nominativi           | Maiuscolo, senza spazi; validazione con Zod (`/^[A-Z0-9]{1,4}(\/[A-Z0-9]{1,8}){0,2}$/`-like, definita in `core/callsign`).                                               |
-| Booleani indicizzati | IndexedDB **non** indicizza booleani: se un flag serve come indice si usa `0 \| 1` (es. `isFavorite`). Booleani non indicizzati restano `boolean`.                       |
-| Campi opzionali      | Assenti (non `null`) quando non valorizzati; IndexedDB non indicizza `undefined`, comportamento voluto per indici sparsi.                                                |
-| Metadati comuni      | Ogni entità utente ha `createdAt` e `updatedAt` (UTC ISO), aggiornati dal repository.                                                                                    |
-| Provenienza          | Dati importati: `sourceKey`, `importJobId` e, dove previsto, `raw` (record originale) per tracciabilità e re-parsing.                                                    |
-| Dati di esempio      | Campo `isSample: 1` sui record caricati da fixture dimostrative (FR-GEN-04); esclusi da statistiche ed export salvo scelta esplicita.                                    |
+| Ambito               | Regola                                                                                                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nomi tabelle         | `snake_case` plurale (`qso_logs`).                                                                                                                              |
+| Nomi campi           | `camelCase` (`frequencyHz`), identici al tipo TypeScript: nessun mapping fra DB e dominio ([ADR-0006](../adr/0006-dexie-naming-and-migrations.md), accettato).  |
+| Chiave primaria      | `id: string` UUID v4 da `crypto.randomUUID()`. Eccezioni: `settings` (chiave stringa `key`).                                                                    |
+| Frequenze            | `number` intero in **Hz** (suffisso `Hz`). `Number.isSafeInteger` garantito fino a ~9 PHz.                                                                      |
+| Toni sub-audio       | Intero in **decimi di Hz** (suffisso `DeciHz`: 88,5 Hz → `885`). Eccezione motivata in [ADR-0005](../adr/0005-data-conventions.md).                             |
+| Date/ore             | Stringa ISO 8601 UTC con `Z`, precisione al secondo (`2026-10-17T13:21:00Z`). Ordinabile lessicograficamente → indicizzabile.                                   |
+| Orari di palinsesto  | Minuti dal 00:00 UTC (`0..1440`).                                                                                                                               |
+| Date senza ora       | `YYYY-MM-DD` (es. validità di un palinsesto).                                                                                                                   |
+| Coordinate           | `lat`, `lon` in gradi decimali WGS84 (`lat ∈ [-90, 90]`, `lon ∈ [-180, 180)`).                                                                                  |
+| Locator              | Maidenhead normalizzato: campo e quadrato maiuscoli, sottoquadrato minuscolo (`JN45dl`).                                                                        |
+| Nominativi           | Maiuscolo, senza spazi; validazione con Zod (`/^[A-Z0-9]{1,4}(\/[A-Z0-9]{1,8}){0,2}$/`-like, definita in `core/callsign`).                                      |
+| Booleani indicizzati | IndexedDB **non** indicizza booleani: se un flag serve come indice si usa `0 \| 1` (es. `isFavorite`). Booleani non indicizzati restano `boolean`.              |
+| Campi opzionali      | Assenti (non `null`) quando non valorizzati; IndexedDB non indicizza `undefined`, comportamento voluto per indici sparsi.                                       |
+| Metadati comuni      | Ogni entità utente ha `createdAt` e `updatedAt` (UTC ISO), aggiornati dal repository. Eccezione: `attachments` ha solo `createdAt` (allegati immutabili, § 11). |
+| Provenienza          | Dati importati: `sourceKey`, `importJobId` e, dove previsto, `raw` (record originale) per tracciabilità e re-parsing.                                           |
+| Dati di esempio      | Campo `isSample: 1` sui record caricati da fixture dimostrative (FR-GEN-04); esclusi da statistiche ed export salvo scelta esplicita.                           |
 
-Ogni entità ha uno schema Zod in `modules/<modulo>/domain/` (o `core/` se condivisa) e il tipo derivato `z.infer<typeof Schema>`.
+Ogni entità ha uno schema Zod in `modules/<modulo>/domain/` (o `core/` se condivisa) e il tipo derivato `z.infer<typeof Schema>`. Implementati in M2 (Blocco B): `settings-backup/domain/station-profile.ts` e `setting.ts`, `ham-logbook/domain/qso-log.ts`, `swl-logbook/domain/swl-reception.ts` e `reception-details.ts`, `qsl-manager/domain/qsl-record.ts`, `core/attachment`, `core/import-job`, `core/data-source`. Gli schemi sono `strictObject`: un campo non documentato qui è rifiutato.
 
 ---
 
@@ -373,9 +373,9 @@ Indici composti: `[season+frequencyHz]`. La query "in onda ora" filtra per frequ
 
 ---
 
-## 5. Definizione Dexie (riferimento per M2)
+## 5. Definizione Dexie (versione 1, implementata)
 
-Schema della **versione 1** come verrà scritto in `src/infrastructure/db/schema.ts` (illustrativo; la forma definitiva si fissa in M2 con i test):
+Schema della **versione 1** implementato in `src/infrastructure/db/schema.ts` (`SCHEMA_V1`, oggetto congelato), identico a questa dichiarazione. `tests/integration/db/migrations.spec.ts` confronta `SCHEMA_V1` con questo testo e `tests/integration/db/app-database.spec.ts` verifica lo schema fisico creato in IndexedDB (versione nativa 10, cioè v1 × 10, chiavi, indici semplici, composti e univoci).
 
 ```ts
 db.version(1).stores({
@@ -397,11 +397,13 @@ db.version(1).stores({
 
 Solo i campi indicizzati compaiono nella stringa; gli altri sono memorizzati ma non dichiarati (comportamento standard Dexie).
 
+Accesso alle tabelle: `AppDatabase` (`src/infrastructure/db/app-database.ts`) con `EntityTable<T, 'id'>` (`'key'` per `settings` e `data_sources`), dove `T` è il tipo dello schema Zod dell'entità. Solo il codice di infrastructure lo usa; il resto dell'app dipende dalle porte ([ADR-0014](../adr/0014-repositories-unit-of-work-and-persistence-errors.md)).
+
 ---
 
 ## 6. Integrità referenziale (applicativa)
 
-IndexedDB non ha chiavi esterne: l'integrità è garantita dai repository e coperta da test di integrazione.
+IndexedDB non ha chiavi esterne: l'integrità è garantita dai repository e coperta da test di integrazione (`tests/integration/db/referential-integrity.spec.ts` e test per repository). Ogni operazione esegue controlli e scritture in un'unica transazione Dexie, con l'ambito di tabelle dichiarato in `src/infrastructure/db/integrity.ts` (`SCOPES`); i controlli precedono qualsiasi scrittura.
 
 | Operazione                                         | Regola                                                                                                                                                              |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -414,6 +416,20 @@ IndexedDB non ha chiavi esterne: l'integrità è garantita dai repository e cope
 | Elimina `resource_categories`                      | Figli e risorse spostati nella categoria padre (o radice).                                                                                                          |
 | Verifica orfani                                    | Funzione diagnostica in Impostazioni (FR-SET-04) che segnala e, su conferma, ripulisce gli orfani non tollerati.                                                    |
 
+Regole di scrittura implementate in M2 (oltre alle cancellazioni):
+
+| Tabella             | Regola                                                                                                                                                                                                                                                                                                                 | Errore                                                                                                                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `station_profiles`  | Con almeno un profilo, esattamente uno ha `isDefault: 1`: il primo diventa predefinito; un nuovo predefinito (`create` con `isDefault: 1` o `setDefault`) azzera il precedente; eliminando il predefinito si promuove il profilo più vecchio. `update` non modifica `isDefault`.                                       | —                                                                                                                                                                                          |
+| `station_profiles`  | Eliminazione bloccata se referenziato da `qso_logs` o `swl_receptions`, o se è l'ultimo profilo.                                                                                                                                                                                                                       | `conflict/referenced` (`station-profile.referenced`), `conflict/invariant` (`station-profile.last`)                                                                                        |
+| `qso_logs`          | `stationProfileId` deve esistere (in creazione e quando cambia).                                                                                                                                                                                                                                                       | `conflict/missing-reference` (`qso.station-profile-missing`)                                                                                                                               |
+| `swl_receptions`    | `stationProfileId` deve esistere. `stationId`, `scheduleId`, `satelliteId` puntano a tabelle delle versioni successive: non verificati (orfani tollerati).                                                                                                                                                             | `conflict/missing-reference` (`swl.station-profile-missing`)                                                                                                                               |
+| `reception_details` | Scritti con la ricezione (aggregato). `category` uguale a quella della ricezione; cambiando categoria a una ricezione con dettagli servono nuovi dettagli (o `null`) nello stesso aggiornamento.                                                                                                                       | `conflict/invariant` (`reception-details.category-mismatch`)                                                                                                                               |
+| `qsl_records`       | Il soggetto (`qso_logs` o `swl_receptions`, secondo `subjectType`) deve esistere; al più un record per soggetto e canale; il soggetto non cambia dopo la creazione.                                                                                                                                                    | `conflict/missing-reference` (`qsl-record.subject-missing`), `conflict/duplicate` (`qsl-record.channel-taken`)                                                                             |
+| `attachments`       | Il proprietario deve esistere; `ownerType: 'resource'` rifiutato fino alla v5 (M9); stesso `sha256` sullo stesso proprietario rifiutato; contenuti uguali su proprietari diversi restano righe distinte ([ADR-0009](../adr/0009-attachments-in-indexeddb.md)); dimensione entro il limite configurato (default 20 MB). | `conflict/missing-reference` (`attachment.owner-missing`, `attachment.owner-type-unavailable`), `conflict/duplicate` (`attachment.same-content`), `invalid-input` (`attachment.too-large`) |
+
+Ogni scrittura passa prima dallo schema dell'entità (`persistence.invalid-input` con l'elenco delle issue). Le operazioni concorrenti sono serializzate da IndexedDB: i test verificano che `setDefault`, creazioni di QSL sullo stesso canale e caricamenti dello stesso allegato in parallelo lascino uno stato coerente, e che una cancellazione concorrente con la creazione di una QSL non lasci orfani.
+
 ---
 
 ## 7. Migrazioni
@@ -421,8 +437,28 @@ IndexedDB non ha chiavi esterne: l'integrità è garantita dai repository e cope
 - Ogni modifica di schema = `db.version(n + 1).stores({...}).upgrade(tx => …)`; le versioni precedenti restano nel codice invariate ([ADR-0006](../adr/0006-dexie-naming-and-migrations.md)).
 - Le migrazioni di dati sono funzioni pure `migrateVnToVn1(record)` riutilizzate anche dal **restore** di backup vecchi.
 - Test obbligatori per ogni migrazione: database popolato alla versione `n` con `fake-indexeddb` → apertura alla `n+1` → verifica di dati e indici.
-- Registro migrazioni in questo documento (sezione da aggiungere in M2: _Storico versioni_).
+- Registro migrazioni in questo documento (§ 7.1 _Storico versioni_).
 - Gestione `versionchange`/`blocked`: se un'altra scheda tiene aperto il DB vecchio, l'app chiude la connessione e chiede il ricaricamento.
+
+Implementazione (M2, [ADR-0014](../adr/0014-repositories-unit-of-work-and-persistence-errors.md)):
+
+| Elemento                    | Dove / come                                                                                                                                                                                                                                                    |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Versioni di schema          | `SCHEMA_VERSIONS` in `src/infrastructure/db/schema.ts`: per ogni versione la dichiarazione `stores()` e la migrazione dei dati dalla precedente. `applySchemaVersions` rifiuta versioni non consecutive o migrazioni che non portano alla versione dichiarata. |
+| Trasformazioni dei dati     | `RecordMigration` (funzioni pure per tabella, `null` = elimina il record) in `src/infrastructure/db/migrations/record-migration.ts`, senza dipendenze da Dexie. `migrateTables` le applica in sequenza a un insieme di record (restore, Blocco C).             |
+| Upgrade Dexie               | `toDexieUpgrade` applica la stessa `RecordMigration` dentro la transazione di upgrade: un errore annulla l'intero upgrade e il database resta alla versione precedente con i suoi dati (testato).                                                              |
+| Migrazione dei backup       | Separata dall'upgrade: riusa solo le funzioni pure tramite la porta `BackupGateway.migrate` (Blocco C). Le modifiche di soli indici non toccano i backup.                                                                                                      |
+| Idempotenza                 | Le trasformazioni devono essere idempotenti (un record già migrato resta invariato); Dexie esegue ogni upgrade una sola volta per versione.                                                                                                                    |
+| Versione più recente        | Il database con versione installata superiore a quella dell'app non viene aperto (`persistence.unavailable/newer-version`), a differenza del comportamento predefinito di Dexie 4.                                                                             |
+| `versionchange` / `blocked` | `AppDatabase` chiude la connessione senza riapertura automatica e notifica `version-change`, oppure notifica `blocked` (porta `DatabaseLifecycle`). Avviso in UI: Blocco D.                                                                                    |
+| Test                        | `tests/integration/db/migrations.spec.ts` con una v2 **sintetica** definita solo nel test: upgrade da v1 popolato, trasformazione, nuovo indice, rollback di un upgrade fallito. Nessuna v2 reale prima di M5.                                                 |
+
+### 7.1 Storico versioni
+
+| Versione | Milestone | Tabelle                                                                                                                                        | Migrazione dei dati | Stato                                                                                                                       |
+| -------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 1        | M2        | `station_profiles`, `qso_logs`, `swl_receptions`, `reception_details`, `qsl_records`, `attachments`, `settings`, `data_sources`, `import_jobs` | — (prima versione)  | Implementata; diventa immutabile con il deploy di produzione di M2 ([ADR-0006](../adr/0006-dexie-naming-and-migrations.md)) |
+| 2        | M5        | + `stations`, `frequencies`, `broadcast_schedules`                                                                                             | da definire         | Pianificata                                                                                                                 |
 
 ---
 
@@ -496,4 +532,37 @@ Test obbligatori: round-trip identico; restore di un backup v1 dopo ogni nuova v
 
 - `navigator.storage.persist()` richiesto al primo avvio utile; esito mostrato in Impostazioni (FR-SET-03).
 - `navigator.storage.estimate()` per mostrare uso e quota; avviso oltre l'80 %.
-- In caso di `QuotaExceededError` la transazione fallisce senza dati parziali; l'utente viene invitato a liberare spazio (cache, allegati, dataset).
+- In caso di `QuotaExceededError` la transazione fallisce senza dati parziali; l'utente viene invitato a liberare spazio (cache, allegati, dataset). Implementato in M2: `persistence.quota-exceeded`, con rollback verificato da test su quota simulata; avviso in UI nel Blocco D.
+
+### 10.1 Verifiche da eseguire su browser reale
+
+I test di integrazione usano `fake-indexeddb` (implementazione in memoria della specifica IndexedDB) in Node. Non sostituiscono il collaudo su Chrome per Android, che resta da eseguire (Blocco D e M13):
+
+| #   | Verifica                                                                                                                                     | Perché fake-indexeddb non basta                                                                      |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 1   | Quota esaurita reale (allegati grandi fino al riempimento) con rollback e messaggio                                                          | La quota è simulata facendo fallire una richiesta; nei browser l'errore può arrivare anche al commit |
+| 2   | Persistenza dopo chiusura dell'app installata, riavvio del tablet e pulizia della cache di sistema; effetto di `navigator.storage.persist()` | Il database di test vive in memoria per la durata del test                                           |
+| 3   | Allegati audio/immagini da 10–20 MB: scrittura, lettura, memoria usata                                                                       | In Node i Blob sono clonati in memoria; nei browser sono su disco                                    |
+| 4   | Due schede con versioni diverse dell'app: `versionchange` e `blocked` con l'avviso del Blocco D                                              | Gli eventi sono simulati con due connessioni nello stesso processo                                   |
+| 5   | Tempi di transazione con molti record (es. 10 000 QSO in un'unità), interfaccia reattiva                                                     | Prestazioni e chiusura automatica delle transazioni dipendono dal motore del browser                 |
+| 6   | Navigazione privata / storage bloccato: errore `persistence.unavailable` mostrato in modo comprensibile                                      | Il caso è simulato con una factory IndexedDB che rifiuta l'apertura                                  |
+
+---
+
+## 11. Differenze e precisazioni emerse nell'implementazione (M2, Blocco B)
+
+Nessuna tabella, colonna o relazione è stata aggiunta rispetto a § 3 e § 5. Le voci seguenti chiariscono punti ambigui o rinviano regole alla milestone che le usa.
+
+| #     | Punto                                                                                                                                 | Scelta in M2                                                                                                                                                        |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DB-1  | § 1 dice che ogni entità utente ha `createdAt` e `updatedAt`; la tabella `attachments` (§ 3) elenca solo `createdAt`.                 | Prevale § 3: gli allegati sono immutabili (un nuovo file è una nuova riga), quindi niente `updatedAt`.                                                              |
+| DB-2  | `qsl_records.subjectType` usa `'swl'`, `attachments.ownerType` usa `'swl_reception'` per la stessa entità.                            | Valori mantenuti come documentati (fanno parte del formato di backup); la corrispondenza è in `integrity.ts`.                                                       |
+| DB-3  | "Esattamente un profilo con `isDefault: 1`" non dice cosa accade a zero profili, al primo profilo e all'eliminazione del predefinito. | Vincolo valido quando esiste almeno un profilo; regole in § 6.                                                                                                      |
+| DB-4  | `reception_details.category` "deve coincidere con la ricezione": non è detto come si cambia la categoria.                             | Ricezione e dettagli formano un aggregato scritto in un'unica transazione; il cambio di categoria richiede nuovi dettagli (§ 6).                                    |
+| DB-5  | `attachments.ownerType: 'resource'` è nello schema v1, ma `resources` arriva con la v5.                                               | Valore accettato dallo schema, allegato rifiutato dal repository finché la tabella non esiste (M9).                                                                 |
+| DB-6  | `qso_logs.band` è "derivata" e `mode` è "enumerazione ADIF"; `swl_receptions.band` è derivata.                                        | In M2 si controlla solo il formato (`20m`, `70cm`, modo in maiuscolo). Derivazione dal band plan ed enumerazioni ADIF in M3 (BL-M3-01); banda SWL in M4.            |
+| DB-7  | `lat`/`lon` "derivati dal locator se non forniti" (`station_profiles`, `qso_logs`).                                                   | Nessuna derivazione automatica in M2; lo schema richiede `lat` e `lon` insieme e `positionSource` solo con una posizione. Derivazione nei casi d'uso dei form (M3). |
+| DB-8  | Campi opzionali "assenti, non `null`": una form produce stringhe vuote.                                                               | I campi di testo opzionali vuoti diventano assenti; i campi `undefined` vengono rimossi prima della scrittura (round-trip del backup identico).                     |
+| DB-9  | § 6 non prevede l'eliminazione di `import_jobs` diversi dai palinsesti.                                                               | Nessuna eliminazione dei job in v1 (storico per FR-SET-07); l'eliminazione di un dataset di palinsesto arriva con `broadcast_schedules` (M5).                       |
+| DB-10 | Dexie 4 apre un database con versione più recente di quella dichiarata.                                                               | L'app lo rifiuta (`newer-version`, § 7).                                                                                                                            |
+| DB-11 | Le regole fra campi (es. `datetimeOff ≥ datetimeOn`) sono riportate da Zod solo se i singoli campi sono validi.                       | Comportamento accettato: i report di validazione (form, import) mostrano gli errori dei campi e poi quelli fra campi.                                               |

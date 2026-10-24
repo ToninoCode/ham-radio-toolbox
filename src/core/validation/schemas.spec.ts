@@ -8,6 +8,9 @@ import type { UtcDateTime } from "@/core/time";
 import {
   callsignSchema,
   catalogKeySchema,
+  checkNotBefore,
+  checkTimestamps,
+  checkTogether,
   coordinatesSchema,
   frequencyHzSchema,
   indexedFlagSchema,
@@ -16,12 +19,15 @@ import {
   locatorSchema,
   longitudeSchema,
   minuteOfDaySchema,
+  optionalTextSchema,
   provenanceSchema,
   sampleFlagSchema,
   sha256HexSchema,
   signalReportSchema,
   signalReportSchemaFor,
   sinpoCodeSchema,
+  textSchema,
+  timestampFields,
   timestampsSchema,
   utcDateSchema,
   utcDateTimeSchema,
@@ -340,5 +346,71 @@ describe("composition into an entity schema", () => {
       ["gridsquare", "locator.invalid-format"],
       ["datetimeOn", "time.missing-offset"],
     ]);
+  });
+});
+
+describe("text schemas", () => {
+  it("textSchema trims and rejects blank text", () => {
+    expect(textSchema.parse("  Casa  ")).toBe("Casa");
+    expect(codes(textSchema, "   ")).toEqual(["text.empty"]);
+    expect(codes(textSchema, undefined)).toEqual(["zod.invalid_type"]);
+  });
+
+  it("optionalTextSchema turns blank text into an absent value", () => {
+    expect(optionalTextSchema.parse(" note ")).toBe("note");
+    expect(optionalTextSchema.parse("   ")).toBeUndefined();
+    expect(optionalTextSchema.parse(undefined)).toBeUndefined();
+    expect(codes(optionalTextSchema, 1)).toEqual(["zod.invalid_type"]);
+  });
+});
+
+describe("refinement helpers for entity schemas", () => {
+  const entity = z
+    .object({
+      ...timestampFields,
+      start: utcDateTimeSchema,
+      end: utcDateTimeSchema.optional(),
+      lat: latitudeSchema.optional(),
+      lon: longitudeSchema.optional(),
+    })
+    .superRefine((value, ctx) => {
+      checkTimestamps(value, ctx);
+      checkNotBefore(value, "start", "end", ctx, "test.end-before-start");
+      checkTogether(value, ["lat", "lon"], ctx);
+    });
+  const valid = {
+    createdAt: "2026-10-24T10:00:00Z",
+    updatedAt: "2026-10-24T10:00:00Z",
+    start: "2026-10-24T10:00:00Z",
+  };
+  const issues = (value: unknown) =>
+    entity.safeParse(value).error?.issues.map((i) => [i.path, issueCode(i)]);
+
+  it("accepts consistent values", () => {
+    expect(entity.safeParse(valid).success).toBe(true);
+    expect(
+      entity.safeParse({ ...valid, end: valid.start, lat: 45, lon: 9 }).success,
+    ).toBe(true);
+  });
+
+  it("reports the issue on the later field with a domain code", () => {
+    expect(issues({ ...valid, updatedAt: "2026-10-24T09:59:59Z" })).toEqual([
+      [["updatedAt"], "timestamps.updated-before-created"],
+    ]);
+    expect(issues({ ...valid, end: "2026-10-24T09:00:00Z" })).toEqual([
+      [["end"], "test.end-before-start"],
+    ]);
+  });
+
+  it("requires grouped fields together", () => {
+    expect(issues({ ...valid, lat: 45 })).toEqual([
+      [["lon"], "fields.incomplete-group"],
+    ]);
+  });
+});
+
+describe("Zod configuration", () => {
+  it("runs without eval (jitless), as required by the app's CSP", () => {
+    expect(z.config().jitless).toBe(true);
   });
 });

@@ -2,7 +2,7 @@
 
 PWA local-first e offline-first per radioamatori e SWL, pensata per tablet Android e utilizzabile da browser desktop: logbook HAM e SWL, explorer di frequenze, segnali, satelliti, APRS e ripetitori, calcolatori RF, propagazione, QSL, risorse e backup.
 
-> **Stato**: versione **0.1.0**. Milestone **M0** chiusa e **M1 — Fondamenta PWA e dashboard** approvata per la chiusura il 2026-10-17: PWA installabile e offline, dashboard, navigazione dei 14 moduli, CI su GitHub Actions, deploy Cloudflare Pages verificato sulla preview, `main` protetto. Rilascio in produzione e tag `v0.1.0` in corso ([ROADMAP § 6](docs/roadmap/ROADMAP.md#6-checklist-di-completamento-m1)). I 13 moduli funzionali mostrano la pagina "In sviluppo" con la milestone prevista; la prossima è M2 (persistenza IndexedDB).
+> **Stato**: versione **0.1.0**. Milestone **M0** chiusa e **M1 — Fondamenta PWA e dashboard** approvata per la chiusura il 2026-10-17: PWA installabile e offline, dashboard, navigazione dei 14 moduli, CI su GitHub Actions, deploy Cloudflare Pages verificato sulla preview, `main` protetto. Rilascio in produzione e tag `v0.1.0` in corso ([ROADMAP § 6](docs/roadmap/ROADMAP.md#6-checklist-di-completamento-m1)). I 13 moduli funzionali mostrano la pagina "In sviluppo" con la milestone prevista. **M2 (persistenza IndexedDB) in corso**: core domain approvato; database Dexie v1, repository e transazioni implementati (Blocco B, in attesa di approvazione), senza ancora interfacce utente che li usino.
 
 ## Documentazione
 

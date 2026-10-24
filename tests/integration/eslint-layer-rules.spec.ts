@@ -161,6 +161,36 @@ describe("layer rules: forbidden dependencies are reported", () => {
       "src/modules/satellite-explorer/application/refresh.ts",
       'export const load = () => fetch("https://example.org");\n',
     ],
+    [
+      "shared/application → dexie",
+      "src/shared/application/unit-of-work.ts",
+      'import Dexie from "dexie";\nexport const d = Dexie;\n',
+    ],
+    [
+      "shared/application → infrastructure",
+      "src/shared/application/unit-of-work.ts",
+      'import { AppDatabase } from "@/infrastructure/db";\nexport const d = AppDatabase;\n',
+    ],
+    [
+      "shared/application → feature module",
+      "src/shared/application/backup.ts",
+      'import { qsoLogSchema } from "@/modules/ham-logbook";\nexport const s = qsoLogSchema;\n',
+    ],
+    [
+      "shared/application → browser global (indexedDB)",
+      "src/shared/application/storage-info.ts",
+      "export const factory = () => indexedDB;\n",
+    ],
+    [
+      "domain → shared/application",
+      "src/modules/ham-logbook/domain/qso-log.ts",
+      'import { notFound } from "@/shared/application";\nexport const n = notFound;\n',
+    ],
+    [
+      "core → shared/application",
+      "src/core/attachment/attachment.ts",
+      'import type { UnitOfWork } from "@/shared/application";\nexport type U = UnitOfWork;\n',
+    ],
   ])("%s", async (_label, filePath, code) => {
     const violations = await layerViolations(filePath, code);
     expect(violations.length).toBeGreaterThan(0);
@@ -203,6 +233,21 @@ describe("layer rules: allowed dependencies are not reported", () => {
       "presentation → public index of another module",
       "src/modules/swl-logbook/presentation/store.ts",
       'import { findScheduledAt } from "@/modules/frequency-explorer";\nexport const f = findScheduledAt;\n',
+    ],
+    [
+      "module application → shared/application ports",
+      "src/modules/ham-logbook/application/ports.ts",
+      'import type { PersistenceError } from "@/shared/application";\nexport type E = PersistenceError;\n',
+    ],
+    [
+      "module infrastructure → shared infrastructure and ports",
+      "src/modules/ham-logbook/infrastructure/dexie-qso-log-repository.ts",
+      'import { guard } from "@/infrastructure/db";\nimport { notFound } from "@/shared/application";\nexport const g = [guard, notFound];\n',
+    ],
+    [
+      "shared infrastructure → public index of a module (entity types)",
+      "src/infrastructure/db/app-database.ts",
+      'import type { QsoLog } from "@/modules/ham-logbook";\nexport type Q = QsoLog;\n',
     ],
     [
       "composition root → module internals and infrastructure",

@@ -49,8 +49,8 @@ Struttura del repository (confermata in M0, dettagli in `docs/architecture/ARCHI
 ```
 src/
   app/                 # composition root: bootstrap, container DI, router, layout, pwa/ (registrazione SW)
-  shared/              # ui components, utils, i18n, zod helpers, types comuni
-  core/                # domain condiviso: frequency, band, locator, time, units
+  shared/              # ui components, utils, i18n, types comuni, application/ (porte comuni: errori di persistenza, UnitOfWork, Clock…)
+  core/                # domain condiviso: frequency, locator, time, callsign, reports, validation (zod), attachment, import-job, data-source
   modules/
     dashboard/
     ham-logbook/       # ognuno con domain/ application/ infrastructure/ presentation/
@@ -67,9 +67,10 @@ src/
     propagation/
     settings-backup/
   infrastructure/
-    db/                # Dexie schema, migrazioni, repository base
+    db/                # AppDatabase, versioni di schema, migrazioni pure, UnitOfWork, integrità, repository condivisi
     providers/         # http client, registry, adapter fonti esterne
     files/             # lettura/salvataggio file, hashing, limiti
+    system/            # orologio e generatore di UUID (adattatori di Clock e IdGenerator)
     workers/           # Web Worker (parsing grandi file, passaggi satellitari)
 public/
   _headers             # header HTTP Cloudflare Pages (CSP, sicurezza, cache)
@@ -78,7 +79,7 @@ scripts/               # script di sviluppo (icone, controlli sulla build)
 eslint/                # regole ESLint locali (confini fra moduli)
 .github/               # workflow CI/CD, Dependabot, ruleset di main
 tests/
-  integration/         # repository Dexie con fake-indexeddb, test delle regole ESLint
+  integration/         # repository Dexie con fake-indexeddb (db/), container, test delle regole ESLint
   cloudflare/          # hosting: header, fallback SPA, CSP (emulatore Pages o deploy reale)
   support/             # setup Vitest e helper di mount
   e2e/                 # Playwright

@@ -1,6 +1,6 @@
 # 0013 — Core domain: tipi branded, `Result` e schemi di validazione
 
-- **Stato**: Proposto (da approvare con il Blocco A di M2)
+- **Stato**: Accettato (2026-10-24, approvazione del Blocco A di M2)
 - **Data**: 2026-10-17
 - **Milestone**: M2
 
