@@ -48,7 +48,7 @@ Struttura del repository (confermata in M0, dettagli in `docs/architecture/ARCHI
 
 ```
 src/
-  app/                 # composition root: bootstrap, container DI, router, layout, pwa/ (registrazione SW)
+  app/                 # composition root: bootstrap, container DI, router, layout, pwa/ (registrazione SW), persistence/ (avvisi sul database), theme/
   shared/              # ui components, utils, i18n, types comuni, application/ (porte comuni: errori di persistenza, UnitOfWork, Clock…, pipeline di import generica)
   core/                # domain condiviso: frequency, locator, time, callsign, reports, validation (zod), attachment, import-job, data-source
   modules/
@@ -69,8 +69,8 @@ src/
   infrastructure/
     db/                # AppDatabase, versioni di schema, migrazioni pure, UnitOfWork, integrità, repository condivisi, gateway del backup
     providers/         # http client, registry, adapter fonti esterne
-    files/             # lettura/salvataggio file, hashing (anche SHA-256 incrementale), base64, JSON canonico, limiti
-    system/            # orologio e generatore di UUID (adattatori di Clock e IdGenerator)
+    files/             # lettura/salvataggio (download) file, hashing (anche SHA-256 incrementale), base64, JSON canonico, limiti
+    system/            # orologio, UUID, navigator.storage, notifiche fra schede (BroadcastChannel)
     workers/           # Web Worker (parsing grandi file, passaggi satellitari)
 public/
   _headers             # header HTTP Cloudflare Pages (CSP, sicurezza, cache)
@@ -79,10 +79,10 @@ scripts/               # script di sviluppo (icone, controlli sulla build)
 eslint/                # regole ESLint locali (confini fra moduli)
 .github/               # workflow CI/CD, Dependabot, ruleset di main
 tests/
-  integration/         # fake-indexeddb: repository (db/), pipeline di import (import/), backup e restore (backup/); container, regole ESLint
+  integration/         # fake-indexeddb: repository (db/), pipeline di import (import/), backup e restore (backup/), impostazioni (settings/); container, catalogo dei codici i18n, regole ESLint
   browser/             # pagine harness per Playwright in Chromium reale (backup-harness/)
   cloudflare/          # hosting: header, fallback SPA, CSP (emulatore Pages o deploy reale)
-  support/             # setup Vitest e helper di mount
+  support/             # setup Vitest, helper di mount, container per componenti e store (app-services.ts)
   e2e/                 # Playwright
   fixtures/            # file di test ridotti e anonimizzati; backup/ = backup v1 da ripristinare a ogni versione (byte esatti: esclusi da Prettier)
 docs/                  # struttura decisa in ADR-0002
@@ -137,7 +137,9 @@ Fonti di riferimento: EiBi, HFCC, SigIDWiki, CelesTrak, SatNOGS, HamQSL, QRZ, eQ
 - Gestisci sempre stati di caricamento, vuoto ed errore nelle viste.
 - UI mobile-first, touch target ≥ 44px, dark mode, obiettivo **WCAG 2.2 AA** (etichette, contrasto, focus visibile, navigazione da tastiera).
 - Stringhe UI in italiano tramite il catalogo i18n tipizzato (`src/shared/i18n/`), **mai hardcoded** nei componenti. Codice, nomi, commenti e commit in **inglese**.
-- Richiedi la persistenza dello storage (`navigator.storage.persist()`) e mostra lo stato in Settings.
+- Richiedi la persistenza dello storage (`navigator.storage.persist()`) e mostra lo stato in Settings (all'avvio se non già concessa e con il pulsante in Impostazioni; quota e uso sono stime, mai garanzie).
+- Preferenze solo in IndexedDB (`settings`), mai copie in `localStorage` (ADR-0016). Gli store ricevono i servizi per iniezione (`SETTINGS_SERVICES_KEY`), mai il container o i repository.
+- Codici d'errore tradotti con `errorMessage`/`issueMessage`/`persistenceMessage` di `src/shared/i18n`; il codice tecnico compare solo come dettaglio secondario. Un nuovo codice va aggiunto al catalogo e a `tests/integration/i18n-error-codes.spec.ts`.
 
 ## Comandi
 
@@ -157,7 +159,7 @@ npm run format         # Prettier (scrive)
 npm run format:check   # Prettier (solo verifica, usato in CI)
 npm run test           # Vitest (unit + integrazione)
 npm run test:watch     # Vitest in watch mode
-npm run test:e2e       # Playwright: app su vite preview (4173), hosting su wrangler pages dev (8788), aggiornamento PWA su 4174, harness backup su 4175 (progetto backup-chromium)
+npm run test:e2e       # Playwright: app su vite preview (4173, incluse Impostazioni e due schede), hosting su wrangler pages dev (8788), aggiornamento PWA su 4174, harness backup su 4175 (progetto backup-chromium)
 npm run test:deployment # Playwright sul deploy reale: PAGES_URL=<url> [EXPECTED_BUILD_ID=<sha>]
 npm run icons          # rigenera le icone PWA in public/ (da versionare)
 ```

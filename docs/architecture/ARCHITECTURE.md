@@ -2,7 +2,7 @@
 
 | Campo                | Valore                                                                                                                                                                         |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Stato                | M0 approvato (2026-10-17) · aggiornato con l'implementazione M1 (v0.1.0, 2026-10-17) e M2 Blocchi A–B (persistenza, 2026-10-24)                                                |
+| Stato                | M0 approvato (2026-10-17) · aggiornato con l'implementazione M1 (v0.1.0, 2026-10-17) e M2 Blocchi A–D (persistenza, backup, impostazioni, 2026-10-24)                          |
 | Ultimo aggiornamento | 2026-10-24                                                                                                                                                                     |
 | Documenti collegati  | [Requisiti](../requirements/REQUIREMENTS.md) · [Database](DATABASE.md) · [Fonti dati](../data-sources/SOURCES.md) · [Roadmap](../roadmap/ROADMAP.md) · [ADR](../adr/README.md) |
 
@@ -79,11 +79,12 @@ src/
     modules.ts              # registro dei manifest dei 14 moduli → catalogo fornito con provide (M1)
     container.ts            # wiring porte → adattatori, APP_CONTAINER_KEY / useContainer() (M2)
     layout/                 # shell: header, nav, indicatore offline, toast aggiornamento
-    theme/                  # preferenza tema sistema/chiaro/scuro (store Pinia) e applicazione al documento
+    theme/                  # tema: risoluzione sistema/chiaro/scuro e applicazione al documento; la preferenza è persistita dallo store delle preferenze (M2)
+    persistence/            # stato del database nella shell: apertura, versionchange, blocked, archivio non disponibile (M2, Blocco D)
     views/                  # viste di sistema: "In sviluppo" (FR-GEN-07), pagina non trovata
     pwa/                    # registrazione SW (virtual:pwa-register/vue) e notifiche di aggiornamento/offline
   shared/
-    ui/                     # componenti UI generici (Button, Field, Dialog, DataTable, EmptyState…)
+    ui/                     # componenti UI generici (Button, TextField, Checkbox, Dialog, Notice, EmptyState…)
     i18n/                   # catalogo messaggi it, helper t(), formattatori Intl
     modules/                # contratto ModuleManifest, catalogo dei moduli e injection key
     composables/            # useOnline, useAsyncState, useMediaQuery…
@@ -124,8 +125,8 @@ src/
   infrastructure/
     db/                     # AppDatabase (Dexie), versioni (schema.ts), migrazioni pure (migrations/), errori, UnitOfWork, integrità, repository delle entità condivise (repositories/), gateway del backup (M2, Blocco C)
     providers/              # HttpClient, base provider, registry, rate limiting
-    files/                  # lettura file di import, hashing (SHA-256 Web Crypto e incrementale), base64, JSON canonico (M2), limiti dimensione
-    system/                 # orologio di sistema e generatore di UUID (adattatori di Clock e IdGenerator, M2)
+    files/                  # lettura file di import, hashing (SHA-256 Web Crypto e incrementale), base64, JSON canonico (M2), download dei file generati (FileSaver, M2), limiti dimensione
+    system/                 # orologio, UUID, navigator.storage (StorageInfo), notifiche fra schede su BroadcastChannel (M2)
     workers/                # Web Worker (parsing grandi file, calcolo passaggi)
 public/
   _headers                  # header HTTP per Cloudflare Pages (CSP, sicurezza) — da M1
@@ -136,7 +137,8 @@ eslint/                     # regole ESLint locali (confini fra moduli, BL-M1-16
 tests/
   cloudflare/               # comportamento dell'hosting: header, fallback SPA, CSP (wrangler pages dev o URL reale)
   unit/                     # opzionale: i test unitari stanno accanto ai sorgenti (*.spec.ts)
-  integration/              # repository Dexie con fake-indexeddb (db/), pipeline di import (import/), backup e restore (backup/), container, regole ESLint
+  integration/              # repository Dexie con fake-indexeddb (db/), pipeline di import (import/), backup e restore (backup/), casi d'uso delle impostazioni (settings/), container, catalogo dei codici, regole ESLint
+  support/                  # helper di Vitest: database isolati, container per componenti e store (app-services.ts), record sintetici
   browser/                  # pagine harness eseguite da Playwright in Chromium reale (backup-harness/, M2)
   e2e/                      # Playwright
   fixtures/                 # file di test ridotti e anonimizzati (ADIF, EiBi, HFCC, TLE, Raindrop); backup/ con i backup v1 da ripristinare a ogni versione (M2)
@@ -219,7 +221,9 @@ export function makeCreateQso(deps: CreateQsoDeps) {
 
 Implementate in M2 (Blocco B), in `src/shared/application/` o nell'application del modulo proprietario: repository di profili stazione, impostazioni, QSO, ricezioni SWL (con dettagli), QSL, allegati, fonti dati e job di import; `UnitOfWork` (`DexieUnitOfWork`); `Clock` (`systemClock`); `IdGenerator` (`cryptoIdGenerator`); `ContentHasher` (`webCryptoContentHasher`); `DatabaseLifecycle` (`AppDatabase`).
 
-Blocco C ([ADR-0015](../adr/0015-backup-format-and-atomic-restore.md)): pipeline di import generica (`createImportPipeline`, con le porte `ImportFormat`, `ImportTarget` implementate dai moduli da M3 e `ImportFileReader` → `blobImportFileReader`); `BackupGateway` → `DexieBackupGateway` (snapshot, stato locale, scrittura atomica del restore, migrazioni pure); nel modulo `settings-backup` la porta `BackupCodec` (formato v1, `jsonBackupCodec`) e i casi d'uso `BackupService`. Resta solo contratto `StorageInfo` (Blocco D).
+Blocco C ([ADR-0015](../adr/0015-backup-format-and-atomic-restore.md)): pipeline di import generica (`createImportPipeline`, con le porte `ImportFormat`, `ImportTarget` implementate dai moduli da M3 e `ImportFileReader` → `blobImportFileReader`); `BackupGateway` → `DexieBackupGateway` (snapshot, stato locale, scrittura atomica del restore, migrazioni pure); nel modulo `settings-backup` la porta `BackupCodec` (formato v1, `jsonBackupCodec`) e i casi d'uso `BackupService`.
+
+Blocco D ([ADR-0016](../adr/0016-persistent-preferences-startup-and-tabs.md)): `StorageInfo` → `createNavigatorStorageInfo`; `FileSaver` → `createBrowserFileSaver` (download di un URL `blob:`); `DataChangeNotifier` → `createBroadcastDataChangeNotifier` (BroadcastChannel; `silentDataChangeNotifier` nei test); `DatabaseConnection` → `AppDatabase.connect()`. Nel modulo `settings-backup` i casi d'uso `PreferencesService`, `StationProfileService`, `StorageService` e, nel servizio di backup, `inspectBackup` e `verifyBackup`. `FilePicker` resta un `<input type=file>` della vista: nessuna porta finché un solo punto sceglie file.
 
 La porta `RigControl` viene **solo dichiarata** quando servirà (non in v1), per non introdurre codice morto; la predisposizione consiste nel fatto che i form leggono frequenza/modo da una sorgente iniettabile.
 
@@ -229,11 +233,15 @@ La porta `RigControl` viene **solo dichiarata** quando servirà (non in v1), per
 
 Stato M2: `createContainer(options)` crea `AppDatabase` (aperto in modo pigro alla prima operazione, oppure con `connect()`, che riporta il motivo di un'apertura fallita), `DexieUnitOfWork`, i repository e le porte di sistema; `main.ts` lo fornisce con `APP_CONTAINER_KEY`. Le opzioni permettono ai test di usare un IndexedDB isolato, un orologio e un generatore di id propri. Il container importa direttamente gli adattatori in `modules/*/infrastructure` (eccezione consentita al solo composition root, § 3). Il servizio di backup e restore si ottiene con `loadBackupService()`, che carica con un import dinamico `app/backup-wiring.ts` (codec, gateway e casi d'uso in un chunk separato, ADR-0015).
 
+Blocco D: il container espone anche `storageInfo`, `dataChanges`, `fileSaver`, `database` (`DatabaseConnection`) e `services` (preferenze, profili, storage). `main.ts` fornisce i servizi della presentation di `settings-backup` con `SETTINGS_SERVICES_KEY` (`settingsServicesOf(container)`), avvia lo stato del database, legge le preferenze aspettando al massimo 500 ms, monta l'app e poi chiede la persistenza dello storage ([ADR-0016](../adr/0016-persistent-preferences-startup-and-tabs.md)). Gli store ottengono i servizi con `inject()` (setup store di Pinia, contesto dell'app), mai importando il container.
+
 ### 5.4 Stato e store Pinia
 
 - Uno store per modulo (setup store), contiene **stato UI** (filtri, selezione, stato di caricamento) e chiama i casi d'uso.
 - Gli store **non** importano Dexie e non duplicano il database in memoria: per liste grandi usano query paginate.
 - Per viste reattive ai cambi del DB si usa `liveQuery` di Dexie **incapsulato** in un adattatore che espone un `Observable`/callback generico; la presentation non vede Dexie.
+- Preferenze (M2, Blocco D): un solo store, `usePreferencesStore` di `settings-backup`, esportato dal suo `index.ts` e usato dallo store del tema (`app/theme`) e da quello della dashboard. Le modifiche si applicano subito e si scrivono in ordine; un errore di scrittura lascia il valore in memoria e la UI dice che non è salvato. È l'unica eccezione alla regola "l'`index.ts` espone l'API dell'application" ([ADR-0016](../adr/0016-persistent-preferences-startup-and-tabs.md)).
+- Coerenza fra schede: i casi d'uso pubblicano gli ambiti modificati (`preferences`, `station-profiles`, `all` dopo un restore) con `DataChangeNotifier`; gli store delle altre schede rileggono. Dopo un restore la scheda che l'ha eseguito rilegge preferenze e profili.
 
 ### 5.5 Gestione errori
 
@@ -347,7 +355,7 @@ Configurazione in `vite.config.ts`, registrazione in `src/app/pwa/`. Nessun serv
 4. al primo avvio compare, in testa alla pagina, "App pronta per l'uso offline" (si chiude da sola dopo 10 s o con il pulsante);
 5. errori di registrazione o di aggiornamento compaiono in testa alla pagina come avviso (`role="alert"`) chiudibile.
 
-**Dati**: il service worker gestisce solo le proprie cache (Cache Storage, prefisso `workbox-precache`). Non legge né modifica IndexedDB e non memorizza risposte di terzi, credenziali o contenuti privati. Aggiornare l'app non tocca i dati dell'utente; le migrazioni di schema restano compito di Dexie (M2).
+**Dati**: il service worker gestisce solo le proprie cache (Cache Storage, prefisso `workbox-precache`). I backup generati sono scaricati da un URL `blob:`, che non passa dal service worker: nessun file di backup entra nella Cache Storage (verificato da `tests/e2e/settings.spec.ts`). Non legge né modifica IndexedDB e non memorizza risposte di terzi, credenziali o contenuti privati. Aggiornare l'app non tocca i dati dell'utente; le migrazioni di schema restano compito di Dexie (M2).
 
 **Test automatici** (Playwright sulla build servita da `vite preview`):
 
@@ -367,18 +375,18 @@ Configurazione in `vite.config.ts`, registrazione in `src/app/pwa/`. Nessun serv
 
 Da eseguire su un tablet reale con Chrome stabile, sull'URL HTTPS di Cloudflare Pages (dopo BL-M1-13) oppure, in rete locale, sulla build servita con `npm run preview -- --host` raggiunta tramite `chrome://inspect` e port forwarding (`localhost` è un contesto sicuro, un IP di rete locale no). Annotare data, modello, versione di Android e di Chrome e il `build-id` (Strumenti per sviluppatori o sorgente della pagina).
 
-| #   | Verifica                                                                                                     | Esito atteso                                                                                                       |
-| --- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| 1   | Apri l'URL, attendi "App pronta per l'uso offline".                                                          | Avviso visibile, nessun errore.                                                                                    |
-| 2   | Menu ⋮ → _Installa app_ (o _Aggiungi a schermata Home_).                                                     | Nome "Ham Toolbox", icona con antenna non tagliata.                                                                |
-| 3   | Avvia dall'icona.                                                                                            | Splash scuro, app a schermo intero senza barra degli indirizzi (standalone).                                       |
-| 4   | Ruota il tablet in verticale e in orizzontale su dashboard e su un modulo.                                   | Sidebar a icone in verticale, sidebar completa in orizzontale; nessuno scroll orizzontale.                         |
-| 5   | Attiva la modalità aereo, chiudi l'app dal multitasking, riaprila.                                           | Dashboard visibile, indicatore "Offline".                                                                          |
-| 6   | Offline: apri tutti i 13 moduli dalla navigazione, torna indietro con il gesto di sistema.                   | Ogni modulo mostra "In sviluppo"; il gesto indietro riporta alla pagina precedente.                                |
-| 7   | Offline: ricarica una pagina interna (trascina verso il basso, se disponibile, o riapri l'app su un modulo). | La pagina si riapre.                                                                                               |
-| 8   | Disattiva la modalità aereo.                                                                                 | Indicatore "Online" entro pochi secondi.                                                                           |
-| 9   | Pubblica una nuova build, riapri l'app installata.                                                           | "Nuova versione disponibile"; _Più tardi_ la nasconde; _Aggiorna_ ricarica sulla nuova build (`build-id` diverso). |
-| 10  | Tema: Sistema/Chiaro/Scuro dal menu.                                                                         | Colori e barra di stato coerenti.                                                                                  |
+| #   | Verifica                                                                                                     | Esito atteso                                                                                                                                     |
+| --- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Apri l'URL, attendi "App pronta per l'uso offline".                                                          | Avviso visibile, nessun errore.                                                                                                                  |
+| 2   | Menu ⋮ → _Installa app_ (o _Aggiungi a schermata Home_).                                                     | Nome "Ham Toolbox", icona con antenna non tagliata.                                                                                              |
+| 3   | Avvia dall'icona.                                                                                            | Splash scuro, app a schermo intero senza barra degli indirizzi (standalone).                                                                     |
+| 4   | Ruota il tablet in verticale e in orizzontale su dashboard e su un modulo.                                   | Sidebar a icone in verticale, sidebar completa in orizzontale; nessuno scroll orizzontale.                                                       |
+| 5   | Attiva la modalità aereo, chiudi l'app dal multitasking, riaprila.                                           | Dashboard visibile, indicatore "Offline".                                                                                                        |
+| 6   | Offline: apri tutti i 13 moduli dalla navigazione, torna indietro con il gesto di sistema.                   | Ogni modulo mostra "In sviluppo" (Impostazioni e backup: la pagina delle impostazioni, da M2); il gesto indietro riporta alla pagina precedente. |
+| 7   | Offline: ricarica una pagina interna (trascina verso il basso, se disponibile, o riapri l'app su un modulo). | La pagina si riapre.                                                                                                                             |
+| 8   | Disattiva la modalità aereo.                                                                                 | Indicatore "Online" entro pochi secondi.                                                                                                         |
+| 9   | Pubblica una nuova build, riapri l'app installata.                                                           | "Nuova versione disponibile"; _Più tardi_ la nasconde; _Aggiorna_ ricarica sulla nuova build (`build-id` diverso).                               |
+| 10  | Tema: Sistema/Chiaro/Scuro dal menu.                                                                         | Colori e barra di stato coerenti.                                                                                                                |
 
 Esito e anomalie si registrano nella checklist di chiusura della milestone (ROADMAP, consuntivo).
 
@@ -450,6 +458,8 @@ Pipeline GitHub Actions (`.github/workflows/ci.yml`, introdotta in M1), su pull 
 
 - **Nomi dei job stabili**: `quality` ed `e2e` sono i _required status checks_ del ruleset di `main`; rinominarli richiede di aggiornare `.github/rulesets/main-protection.json`.
 - **Test PWA con due versioni**: `tests/e2e/pwa-update.spec.ts` esegue due `vite build` (`HRT_BUILD_ID` v1 e v2) in `node_modules/.tmp/e2e-pwa-update` e li serve su una porta dedicata (4174). La build di `dist/` testata e distribuita non viene mai ricostruita né toccata. Il test gira una sola volta, nel progetto `desktop-chromium`.
+- **Impostazioni in Chromium**: `tests/e2e/settings.spec.ts` (profili, preferenze dopo ricarica e riavvio offline, IndexedDB bloccato, backup scaricato e ripristinato, file manomesso, due schede con `versionchange`/`blocked`/notifica, axe); `tests/cloudflare/pages.spec.ts` ripete backup, download e anteprima sotto la CSP di produzione.
+- **Pulizia di `pwa-update.spec.ts`**: l'`afterAll` gira anche nei worker dei progetti in cui il test è saltato; pulisce solo il worker che ha avviato il server (corretto nel Blocco D: cancellava la build mentre il test desktop la usava).
 - **Backup in Chromium reale**: il progetto Playwright `backup-chromium` (dopo `desktop-chromium`, per non competere con i test temporizzati) costruisce l'harness `tests/browser/backup-harness` e lo serve su `vite preview` (porta 4175) con la CSP di `public/_headers`: round-trip di un dataset medio senza violazioni CSP e chiusura della pagina durante il commit del restore. `HRT_BACKUP_BENCH=1` esegue le misure di ADR-0015.
 - **Emulazione Cloudflare Pages**: il progetto Playwright `cloudflare-pages` gira su `wrangler pages dev dist` (emulatore ufficiale, applica `_headers` e il fallback SPA come la piattaforma), perché `vite preview` ignora `_headers`. Dopo il deploy la stessa suite gira sull'URL reale.
 - **Copertura**: `npm run test -- --coverage` con soglie sul domain critico entra in CI con M2, quando esiste il primo domain critico (NFR-MNT-03).

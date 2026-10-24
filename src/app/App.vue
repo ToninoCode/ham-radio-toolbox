@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppShell from "./layout/AppShell.vue";
+import DatabaseStatus from "./persistence/DatabaseStatus.vue";
 import PwaStatus from "./pwa/PwaStatus.vue";
 import PwaUpdatePrompt from "./pwa/PwaUpdatePrompt.vue";
 import { usePwaUpdate } from "./pwa/use-pwa-update";
@@ -11,6 +12,7 @@ const pwa = usePwaUpdate();
 <template>
   <AppShell>
     <template #notifications>
+      <DatabaseStatus />
       <PwaStatus :pwa="pwa" />
     </template>
   </AppShell>

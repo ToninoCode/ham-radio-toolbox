@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
+import { usePreferencesStore } from "@/modules/settings-backup";
 import {
   applyTheme,
   DARK_QUERY,
@@ -8,14 +9,15 @@ import {
 } from "./theme";
 
 /**
- * Theme preference (FR-DSH-06): system, light or dark.
- *
- * TODO(M2): persist the preference in the `settings` table through the
- * settings use cases. Until then it lives in memory and starts from
- * "system", which also avoids a wrong-theme flash at startup.
+ * Theme (FR-DSH-06): the preference (system, light, dark) is persisted in
+ * `settings` by the preferences store of settings-backup, the only source
+ * of truth; this store resolves it against the system scheme and applies
+ * it to the document. main.ts waits briefly for the stored preference
+ * before mounting, so the page does not switch theme after it appears.
  */
 export const useThemeStore = defineStore("theme", () => {
-  const preference = ref<ThemePreference>("system");
+  const preferences = usePreferencesStore();
+  const preference = computed<ThemePreference>(() => preferences.theme);
   const systemPrefersDark = ref(false);
   const resolved = computed(() =>
     resolveTheme(preference.value, systemPrefersDark.value),
@@ -43,7 +45,7 @@ export const useThemeStore = defineStore("theme", () => {
   }
 
   function setPreference(value: ThemePreference): void {
-    preference.value = value;
+    void preferences.setTheme(value);
   }
 
   return { preference, resolved, start, setPreference };

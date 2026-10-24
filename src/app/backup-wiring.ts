@@ -7,6 +7,7 @@ import type { BackupService } from "@/modules/settings-backup";
 import type {
   Clock,
   ContentHasher,
+  DataChangeNotifier,
   IdGenerator,
   ImportJobRepository,
   UnitOfWork,
@@ -27,6 +28,7 @@ export interface BackupWiringDeps {
   readonly contentHasher: ContentHasher;
   readonly appVersion: string;
   readonly limits?: Partial<BackupLimits>;
+  readonly notifier?: DataChangeNotifier;
 }
 
 export function createAppBackupService(deps: BackupWiringDeps): BackupService {
@@ -40,5 +42,6 @@ export function createAppBackupService(deps: BackupWiringDeps): BackupService {
     hasher: deps.contentHasher,
     appVersion: deps.appVersion,
     ...(deps.limits ? { limits: deps.limits } : {}),
+    ...(deps.notifier ? { notifier: deps.notifier } : {}),
   });
 }

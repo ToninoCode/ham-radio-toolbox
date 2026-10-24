@@ -14,6 +14,7 @@ export {
   longitudeSchema,
   minuteOfDaySchema,
   optionalTextSchema,
+  patternSchema,
   provenanceSchema,
   sampleFlagSchema,
   sha256HexSchema,

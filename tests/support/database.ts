@@ -4,7 +4,7 @@ import { addSeconds } from "@/core/time";
 import { createContainer, type AppContainer } from "@/app/container";
 import { AppDatabase } from "@/infrastructure/db";
 import { cryptoIdGenerator } from "@/infrastructure/system/crypto-id-generator";
-import type { Clock } from "@/shared/application";
+import { silentDataChangeNotifier, type Clock } from "@/shared/application";
 
 /*
  * Isolated databases for integration tests: every call gets its own
@@ -52,6 +52,8 @@ function open(indexedDB: IDBFactory, name: string): TestDatabase {
     database: options,
     clock,
     ids: cryptoIdGenerator,
+    // Tests of one process must not notify each other through BroadcastChannel.
+    dataChanges: silentDataChangeNotifier,
   });
   const db = new AppDatabase(options);
   return {

@@ -25,6 +25,19 @@ import { domainSchema } from "./domain-schema";
 
 // --- Identifiers ------------------------------------------------------------
 
+/**
+ * String matching `pattern`, with the domain `code` on failure. Zod's
+ * `.regex()` reports `invalid_format` and keeps the code only in the
+ * message, so `issueCode()` would return `zod.invalid_format`: a custom
+ * refinement carries the code in `params`, like {@link domainSchema}.
+ */
+export function patternSchema(pattern: RegExp, code: string) {
+  return z.string().refine((text) => pattern.test(text), {
+    message: code,
+    params: { code },
+  });
+}
+
 /** Entity id: UUID v4 from `crypto.randomUUID()` (ADR-0005). */
 export const uuidSchema = z.uuidv4();
 
@@ -32,14 +45,16 @@ export const uuidSchema = z.uuidv4();
  * Stable catalog key, the documented exception to UUIDs (`settings.key`,
  * `data_sources.key`): lower-case kebab-case, e.g. `app`, `eibi`, `hfcc`.
  */
-export const catalogKeySchema = z
-  .string()
-  .regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/, { message: "catalog-key.invalid" });
+export const catalogKeySchema = patternSchema(
+  /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/,
+  "catalog-key.invalid",
+);
 
 /** SHA-256 digest as lower-case hex (attachments, `import_jobs.fileSha256`). */
-export const sha256HexSchema = z
-  .string()
-  .regex(/^[0-9a-f]{64}$/, { message: "sha256.invalid" });
+export const sha256HexSchema = patternSchema(
+  /^[0-9a-f]{64}$/,
+  "sha256.invalid",
+);
 
 // --- Radio domain -----------------------------------------------------------
 

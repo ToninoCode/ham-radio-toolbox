@@ -102,6 +102,10 @@ export type BackupError =
       /** The first invalid records (at most 100). */
       readonly records: readonly InvalidStoredRecord[];
     })
+  /** The generated file does not read back as written: not offered. */
+  | (DomainError<"backup.export-unverified"> & { readonly reason: string })
+  /** An exception escaped a use case (reported by presentation). */
+  | DomainError<"backup.unexpected-error">
   | PersistenceError;
 
 /** Header fields chosen by the export; `counts` are added by the writer. */
@@ -186,6 +190,28 @@ export interface BackupFile {
   readonly manifest: BackupManifest;
 }
 
+/** What an export would contain, known without reading any content. */
+export interface BackupInventory {
+  /** Records per table in the database. */
+  readonly counts: TableCounts;
+  /** Records of every table except `attachments`. */
+  readonly recordCount: number;
+  readonly attachmentCount: number;
+  /** Sum of the attachment sizes (`sizeBytes`). */
+  readonly attachmentBytes: number;
+  /** Size of the attachment contents in base64 (+33 %), a lower bound. */
+  readonly attachmentBase64Bytes: number;
+  /** Operational size limit of a backup file (ADR-0015). */
+  readonly limitBytes: number;
+}
+
+/** A generated backup read back: structure, counts and checksums match. */
+export interface BackupVerification {
+  readonly recordCount: number;
+  /** Tables whose checksum was verified. */
+  readonly tableCount: number;
+}
+
 /** Validated content of a backup, held in memory until the commit. */
 export interface BackupContent {
   readonly includesAttachments: boolean;
@@ -252,11 +278,21 @@ export interface RestoreOutcome {
 
 /** Use cases of backup and restore. */
 export interface BackupService {
+  /** Record counts and attachment sizes of the database. No writes. */
+  inspectBackup(): Promise<Result<BackupInventory, BackupError>>;
   /** Exports every user table (attachments only on request). */
   createBackup(options: {
     readonly includeAttachments: boolean;
     readonly signal?: AbortSignal;
   }): Promise<Result<BackupFile, BackupError>>;
+  /**
+   * Reads a generated file back (structure, header, counts, checksums)
+   * without keeping its records: offer the file only after this check.
+   */
+  verifyBackup(
+    file: BackupFile,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<Result<BackupVerification, BackupError>>;
   /** Reads, verifies, migrates and validates a backup file. No writes. */
   analyzeBackup(
     file: { readonly name: string; readonly content: Blob },

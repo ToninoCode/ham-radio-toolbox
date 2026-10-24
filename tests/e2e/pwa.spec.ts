@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { MODULE_PATHS, trackErrors, waitForServiceWorker } from "./support";
+import {
+  MODULE_PATHS,
+  pageTestIdOf,
+  trackErrors,
+  waitForServiceWorker,
+} from "./support";
 
 interface ManifestIcon {
   src: string;
@@ -144,7 +149,7 @@ test.describe("offline", () => {
     for (const [id, path] of Object.entries(MODULE_PATHS)) {
       if (id === "dashboard") continue;
       await page.goto(path);
-      await expect(page.getByTestId("under-development"), path).toBeVisible();
+      await expect(page.getByTestId(pageTestIdOf(id)), path).toBeVisible();
     }
 
     // Reload of an internal route and in-app navigation.

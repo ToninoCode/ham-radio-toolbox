@@ -1,4 +1,5 @@
 import { inject, type InjectionKey } from "vue";
+import { createBrowserFileSaver } from "@/infrastructure/files/browser-file-saver";
 import { webCryptoContentHasher } from "@/infrastructure/files/web-crypto-content-hasher";
 import {
   AppDatabase,
@@ -10,7 +11,9 @@ import {
   DexieDataSourceRepository,
   DexieImportJobRepository,
 } from "@/infrastructure/db/repositories";
+import { createBroadcastDataChangeNotifier } from "@/infrastructure/system/broadcast-data-change-notifier";
 import { cryptoIdGenerator } from "@/infrastructure/system/crypto-id-generator";
+import { createNavigatorStorageInfo } from "@/infrastructure/system/navigator-storage-info";
 import { systemClock } from "@/infrastructure/system/system-clock";
 import { DexieQsoLogRepository } from "@/modules/ham-logbook/infrastructure/dexie-qso-log-repository";
 import type { QsoLogRepository } from "@/modules/ham-logbook";
@@ -18,9 +21,16 @@ import { DexieQslRecordRepository } from "@/modules/qsl-manager/infrastructure/d
 import type { QslRecordRepository } from "@/modules/qsl-manager";
 import { DexieSettingsRepository } from "@/modules/settings-backup/infrastructure/dexie-settings-repository";
 import { DexieStationProfileRepository } from "@/modules/settings-backup/infrastructure/dexie-station-profile-repository";
-import type {
-  SettingsRepository,
-  StationProfileRepository,
+import {
+  createPreferencesService,
+  createStationProfileService,
+  createStorageService,
+  type PreferencesService,
+  type SettingsRepository,
+  type SettingsServices,
+  type StationProfileRepository,
+  type StationProfileService,
+  type StorageService,
 } from "@/modules/settings-backup";
 import { DexieSwlReceptionRepository } from "@/modules/swl-logbook/infrastructure/dexie-swl-reception-repository";
 import type { SwlReceptionRepository } from "@/modules/swl-logbook";
@@ -30,13 +40,18 @@ import type {
   AttachmentRepository,
   Clock,
   ContentHasher,
+  DataChangeNotifier,
   DataSourceRepository,
+  DatabaseConnection,
   DatabaseLifecycle,
+  FileSaver,
   IdGenerator,
   ImportJobRepository,
   PersistenceError,
+  StorageInfo,
   UnitOfWork,
 } from "@/shared/application";
+import { silentDataChangeNotifier } from "@/shared/application";
 import type { Result } from "@/shared/types";
 
 /*
@@ -56,13 +71,25 @@ export interface AppRepositories {
   readonly importJobs: ImportJobRepository;
 }
 
+/** Use cases available at startup (the backup ones are loaded lazily). */
+export interface AppServices {
+  readonly preferences: PreferencesService;
+  readonly stationProfiles: StationProfileService;
+  readonly storage: StorageService;
+}
+
 export interface AppContainer {
   readonly clock: Clock;
   readonly ids: IdGenerator;
   readonly contentHasher: ContentHasher;
   readonly unitOfWork: UnitOfWork;
   readonly databaseLifecycle: DatabaseLifecycle;
+  readonly database: DatabaseConnection;
+  readonly storageInfo: StorageInfo;
+  readonly dataChanges: DataChangeNotifier;
+  readonly fileSaver: FileSaver;
   readonly repositories: AppRepositories;
+  readonly services: AppServices;
   /**
    * Backup and restore use cases, loaded on first use (separate chunk,
    * ADR-0015); later calls return the same instance.
@@ -82,6 +109,10 @@ export interface ContainerOptions {
   readonly clock?: Clock;
   readonly ids?: IdGenerator;
   readonly contentHasher?: ContentHasher;
+  readonly storageInfo?: StorageInfo;
+  /** Notifications between tabs (tests: `silentDataChangeNotifier`). */
+  readonly dataChanges?: DataChangeNotifier;
+  readonly fileSaver?: FileSaver;
   /** Backup limits (tests use small ones). */
   readonly backupLimits?: Partial<BackupLimits>;
 }
@@ -98,6 +129,15 @@ export function createContainer(options: ContainerOptions = {}): AppContainer {
   const contentHasher = options.contentHasher ?? webCryptoContentHasher;
   const unitOfWork = new DexieUnitOfWork(database);
   const importJobs = new DexieImportJobRepository(database, deps);
+  const storageInfo = options.storageInfo ?? createNavigatorStorageInfo();
+  const ownChannel = options.dataChanges
+    ? undefined
+    : createBroadcastDataChangeNotifier();
+  const dataChanges: DataChangeNotifier =
+    ownChannel ?? options.dataChanges ?? silentDataChangeNotifier;
+  const fileSaver = options.fileSaver ?? createBrowserFileSaver();
+  const stationProfiles = new DexieStationProfileRepository(database, deps);
+  const settings = new DexieSettingsRepository(database, deps);
   let backupService: Promise<BackupService> | undefined;
 
   return {
@@ -106,15 +146,30 @@ export function createContainer(options: ContainerOptions = {}): AppContainer {
     contentHasher,
     unitOfWork,
     databaseLifecycle: database,
+    database,
+    storageInfo,
+    dataChanges,
+    fileSaver,
     repositories: {
-      stationProfiles: new DexieStationProfileRepository(database, deps),
-      settings: new DexieSettingsRepository(database, deps),
+      stationProfiles,
+      settings,
       qsoLogs: new DexieQsoLogRepository(database, deps),
       swlReceptions: new DexieSwlReceptionRepository(database, deps),
       qslRecords: new DexieQslRecordRepository(database, deps),
       attachments: new DexieAttachmentRepository(database, deps),
       dataSources: new DexieDataSourceRepository(database),
       importJobs,
+    },
+    services: {
+      preferences: createPreferencesService({
+        settings,
+        notifier: dataChanges,
+      }),
+      stationProfiles: createStationProfileService({
+        profiles: stationProfiles,
+        notifier: dataChanges,
+      }),
+      storage: createStorageService({ storage: storageInfo, database }),
     },
     loadBackupService() {
       backupService ??= import("./backup-wiring").then((wiring) =>
@@ -126,13 +181,27 @@ export function createContainer(options: ContainerOptions = {}): AppContainer {
           ids,
           contentHasher,
           appVersion: __APP_VERSION__,
+          notifier: dataChanges,
           ...(options.backupLimits ? { limits: options.backupLimits } : {}),
         }),
       );
       return backupService;
     },
     connect: () => database.connect(),
-    dispose: () => database.close(),
+    dispose: () => {
+      ownChannel?.close();
+      database.close();
+    },
+  };
+}
+
+/** Services of the settings-backup presentation, from the container. */
+export function settingsServicesOf(container: AppContainer): SettingsServices {
+  return {
+    ...container.services,
+    dataChanges: container.dataChanges,
+    fileSaver: container.fileSaver,
+    loadBackupService: () => container.loadBackupService(),
   };
 }
 

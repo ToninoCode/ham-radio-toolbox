@@ -24,10 +24,18 @@ export type {
 } from "./backup";
 export { createImportPipeline } from "./create-import-pipeline";
 export type { ImportPipelineDeps } from "./create-import-pipeline";
+export { silentDataChangeNotifier } from "./data-changes";
 export type {
+  DataChange,
+  DataChangeNotifier,
+  DataChangeScope,
+} from "./data-changes";
+export type {
+  DatabaseConnection,
   DatabaseLifecycle,
   DatabaseLifecycleEvent,
 } from "./database-lifecycle";
+export type { FileSaveError, FileSaver } from "./file-saver";
 export type {
   DataSourceInput,
   DataSourceRepository,

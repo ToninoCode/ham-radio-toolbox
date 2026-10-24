@@ -2,7 +2,7 @@
 
 | Campo                | Valore                                                                                                                                                                                                                                                                                                                                                                                  |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stato                | M0 — Progettazione · **M2**: schema v1 approvato (Blocco B, 2026-10-24) · import, backup e restore implementati (Blocco C, 2026-10-24, in attesa di approvazione)                                                                                                                                                                                                                       |
+| Stato                | M0 — Progettazione · **M2**: schema v1 approvato (Blocco B, 2026-10-24) · import, backup e restore approvati (Blocco C, 2026-10-24) · preferenze, storage e UI (Blocco D, 2026-10-24, in attesa di approvazione)                                                                                                                                                                        |
 | Ultimo aggiornamento | 2026-10-24                                                                                                                                                                                                                                                                                                                                                                              |
 | Tecnologia           | IndexedDB tramite Dexie.js 4.x, validazione Zod 4.x                                                                                                                                                                                                                                                                                                                                     |
 | Documenti collegati  | [Architettura](ARCHITECTURE.md) · [Requisiti](../requirements/REQUIREMENTS.md) · [ADR-0005](../adr/0005-data-conventions.md) · [ADR-0006](../adr/0006-dexie-naming-and-migrations.md) · [ADR-0009](../adr/0009-attachments-in-indexeddb.md) · [ADR-0014](../adr/0014-repositories-unit-of-work-and-persistence-errors.md) · [ADR-0015](../adr/0015-backup-format-and-atomic-restore.md) |
@@ -253,6 +253,16 @@ Chiave-valore per preferenze applicative.
 | `key`       | string                                       | PK (`'app'`, `'dashboard'`, `'units'`…) |
 | `value`     | JSON validato con lo schema Zod della chiave |                                         |
 | `updatedAt` | iso                                          |                                         |
+
+Chiavi in uso (M2, Blocco D; schemi in `settings-backup/domain/preferences.ts`, [ADR-0016](../adr/0016-persistent-preferences-startup-and-tabs.md)). IndexedDB è l'unica fonte di verità delle preferenze: nessuna copia in `localStorage`.
+
+| Chiave      | Valore                                     | Default               | Note                                                                                                                                 |
+| ----------- | ------------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `app`       | `{ theme: 'system' \| 'light' \| 'dark' }` | `{ theme: 'system' }` | FR-DSH-06, FR-SET-02                                                                                                                 |
+| `dashboard` | `{ favorites: string[] }`                  | `{ favorites: [] }`   | FR-DSH-03: id dei moduli in ordine di fissaggio, senza ripetizioni, massimo 32; id sconosciuti conservati e ignorati dalla dashboard |
+| `units`     | —                                          | —                     | Pianificata (M3/M6: unità di frequenza e lunghezza)                                                                                  |
+
+Un valore salvato che non rispetta più lo schema della sua chiave (es. scritto da una versione più recente) non viene corretto in silenzio: la lettura usa il default, l'interfaccia lo segnala e la modifica successiva lo sostituisce.
 
 ### `data_sources`
 
@@ -595,6 +605,8 @@ I record ripristinati restano identici a quelli esportati (anche `origin` e `imp
 | Membri dell'intestazione          | 64 KiB                                             | Idem.                                                                                   |
 | Errori riportati                  | 500 (poi `errorsTruncated`)                        | Come `import_jobs.errors`.                                                              |
 
+**MB e MiB.** Il limite è `100 × 1024 × 1024` byte, cioè **100 MiB = 104 857 600 byte ≈ 104,9 MB** decimali; in questo documento "100 MB" indica questo valore, l'interfaccia mostra le dimensioni in unità binarie (KiB, MiB, GiB). Le misure oltre il limite di [ADR-0015](../adr/0015-backup-format-and-atomic-restore.md) (fino a 420 MB) sono state fatte alzando il limite nell'harness di test e non sono una capacità supportata; su Android nessuna misura è ancora disponibile (checklist in [ROADMAP § 7.2](../roadmap/ROADMAP.md#72-collaudo-su-tablet-android-checklist)).
+
 Prima di generare un backup con allegati si stima la dimensione (somma di `sizeBytes` × 4/3) e si rifiuta subito un backup oltre il limite (`backup.export-too-large`, con il suggerimento di escludere gli allegati); durante la scrittura il limite è ricontrollato. Misure e motivazione del limite in [ADR-0015](../adr/0015-backup-format-and-atomic-restore.md); il supporto oltre il limite (fino ai 500 MB di § 8) richiede il restore con staging proposto per M13.
 
 ### 9.5 Procedure di recupero
@@ -614,30 +626,32 @@ Nessuna risorsa temporanea persistente: export e restore non usano tabelle o dat
 
 ## 10. Quota e persistenza
 
-- `navigator.storage.persist()` richiesto al primo avvio utile; esito mostrato in Impostazioni (FR-SET-03).
-- `navigator.storage.estimate()` per mostrare uso e quota; avviso oltre l'80 %.
-- In caso di `QuotaExceededError` la transazione fallisce senza dati parziali; l'utente viene invitato a liberare spazio (cache, allegati, dataset). Implementato in M2: `persistence.quota-exceeded`, con rollback verificato da test su quota simulata; avviso in UI nel Blocco D.
+- `navigator.storage.persist()` richiesto all'avvio se i dati non sono già persistenti (NFR-REL-03; Chromium risponde senza prompt) e con il pulsante esplicito in Impostazioni; esito, diniego o assenza dell'API mostrati in Impostazioni (FR-SET-03).
+- `navigator.storage.estimate()` per mostrare uso e quota; avviso oltre l'80 % (`QUOTA_WARNING_RATIO`). Uso e quota sono **stime del browser**: la quota non garantisce che lo spazio sia davvero libero sul dispositivo, e l'interfaccia lo dice.
+- In caso di `QuotaExceededError` la transazione fallisce senza dati parziali; l'utente viene invitato a liberare spazio (cache, allegati, dataset). Implementato in M2: `persistence.quota-exceeded`, con rollback verificato da test su quota simulata; messaggio in UI dal Blocco D.
+- Implementazione (Blocco D): porta `StorageInfo` → `createNavigatorStorageInfo` (`src/infrastructure/system/`), casi d'uso `StorageService` nel modulo `settings-backup`; un metodo assente o che solleva un'eccezione vale "il browser non lo indica".
+- Indisponibilità dell'archivio (apertura fallita, `versionchange`, guasto durante una scrittura): avviso nella shell (`src/app/persistence/`), la navigazione resta disponibile e le modifiche restano in memoria con l'indicazione che potrebbero non essere salvate.
 
 ### 10.1 Verifiche da eseguire su browser reale
 
 I test di integrazione usano `fake-indexeddb` (implementazione in memoria della specifica IndexedDB) in Node. Non sostituiscono il collaudo su Chrome per Android, che resta da eseguire (Blocco D e M13):
 
-| #   | Verifica                                                                                                                                        | Perché fake-indexeddb non basta                                                                                             |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Quota esaurita reale (allegati grandi fino al riempimento) con rollback e messaggio                                                             | La quota è simulata facendo fallire una richiesta; nei browser l'errore può arrivare anche al commit                        |
-| 2   | Persistenza dopo chiusura dell'app installata, riavvio del tablet e pulizia della cache di sistema; effetto di `navigator.storage.persist()`    | Il database di test vive in memoria per la durata del test                                                                  |
-| 3   | Allegati audio/immagini da 10–20 MB: scrittura, lettura, memoria usata                                                                          | In Node i Blob sono clonati in memoria; nei browser sono su disco                                                           |
-| 4   | Due schede con versioni diverse dell'app: `versionchange` e `blocked` con l'avviso del Blocco D                                                 | Gli eventi sono simulati con due connessioni nello stesso processo                                                          |
-| 5   | Tempi di transazione con molti record (es. 10 000 QSO in un'unità), interfaccia reattiva                                                        | Prestazioni e chiusura automatica delle transazioni dipendono dal motore del browser                                        |
-| 6   | Navigazione privata / storage bloccato: errore `persistence.unavailable` mostrato in modo comprensibile                                         | Il caso è simulato con una factory IndexedDB che rifiuta l'apertura                                                         |
-| 7   | Backup e restore fino al limite operativo (100 MB, con soli record e con allegati): tempi, reattività dell'interfaccia, memoria e _blob storage | Misurati su Chromium desktop ([ADR-0015](../adr/0015-backup-format-and-atomic-restore.md)); un tablet ha meno memoria e CPU |
-| 8   | Download del backup (nome, Web Share) e scelta del file da ripristinare dal file system Android                                                 | Interfaccia del Blocco D                                                                                                    |
+| #   | Verifica                                                                                                                                                                                   | Perché fake-indexeddb non basta                                                                                             |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Quota esaurita reale (allegati grandi fino al riempimento) con rollback e messaggio                                                                                                        | La quota è simulata facendo fallire una richiesta; nei browser l'errore può arrivare anche al commit                        |
+| 2   | Persistenza dopo chiusura dell'app installata, riavvio del tablet e pulizia della cache di sistema; effetto di `navigator.storage.persist()`                                               | Il database di test vive in memoria per la durata del test                                                                  |
+| 3   | Allegati audio/immagini da 10–20 MB: scrittura, lettura, memoria usata                                                                                                                     | In Node i Blob sono clonati in memoria; nei browser sono su disco                                                           |
+| 4   | Due schede con versioni diverse dell'app: `versionchange` e `blocked` con l'avviso del Blocco D (✅ Chromium desktop, `tests/e2e/settings.spec.ts`; ☐ tablet)                              | Gli eventi sono simulati con due connessioni nello stesso processo                                                          |
+| 5   | Tempi di transazione con molti record (es. 10 000 QSO in un'unità), interfaccia reattiva                                                                                                   | Prestazioni e chiusura automatica delle transazioni dipendono dal motore del browser                                        |
+| 6   | Navigazione privata / storage bloccato: errore `persistence.unavailable` mostrato in modo comprensibile (✅ Chromium desktop con apertura bloccata; ☐ tablet)                              | Il caso è simulato con una factory IndexedDB che rifiuta l'apertura                                                         |
+| 7   | Backup e restore fino al limite operativo (100 MB, con soli record e con allegati): tempi, reattività dell'interfaccia, memoria e _blob storage                                            | Misurati su Chromium desktop ([ADR-0015](../adr/0015-backup-format-and-atomic-restore.md)); un tablet ha meno memoria e CPU |
+| 8   | Download del backup (nome, Web Share) e scelta del file da ripristinare dal file system Android (✅ download e scelta del file in Chromium desktop; ☐ Android, Web Share non implementato) | Interfaccia del Blocco D                                                                                                    |
 
 ---
 
 ## 11. Differenze e precisazioni emerse nell'implementazione (M2, Blocchi B e C)
 
-Nessuna tabella, colonna o relazione è stata aggiunta rispetto a § 3 e § 5 (nemmeno nel Blocco C: lo schema v1 è invariato). Le voci seguenti chiariscono punti ambigui o rinviano regole alla milestone che le usa.
+Nessuna tabella, colonna o relazione è stata aggiunta rispetto a § 3 e § 5 (nemmeno nei Blocchi C e D: lo schema v1 è invariato). Le voci seguenti chiariscono punti ambigui o rinviano regole alla milestone che le usa.
 
 | #     | Punto                                                                                                                                 | Scelta in M2                                                                                                                                                                              |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -658,3 +672,5 @@ Nessuna tabella, colonna o relazione è stata aggiunta rispetto a § 3 e § 5 (n
 | DB-15 | `import_jobs.fileSha256` "rileva il re-import dello stesso file".                                                                     | Calcolato dalla pipeline di import; non per il restore (secondo hash completo di un file fino a 100 MB): il backup si riconosce dal `backupId` nelle `options`.                           |
 | DB-16 | § 9.2 diceva "il record con `updatedAt` più recente vince" senza coprire tabelle senza `updatedAt`, aggregati e profilo predefinito.  | Regole complete di _unisci_ in § 9.2: vince il locale per `attachments`, `data_sources`, `import_jobs`; i dettagli seguono la ricezione; resta il predefinito locale; conflitti scartati. |
 | DB-17 | § 8 proponeva 500 MB per il backup.                                                                                                   | Limite operativo verificato di 100 MB; oltre serve il restore con staging (M13, ADR-0015).                                                                                                |
+| DB-18 | § 3 elencava le chiavi di `settings` (`'app'`, `'dashboard'`, `'units'`) senza il loro contenuto.                                     | Blocco D: `app` = `{ theme }`, `dashboard` = `{ favorites }` (tabella in § 3); `units` resta pianificata. Nessuna nuova colonna né tabella: schema v1 invariato.                          |
+| DB-19 | "100 MB" senza unità precisa.                                                                                                         | 100 MiB (104 857 600 byte), § 9.4.                                                                                                                                                        |

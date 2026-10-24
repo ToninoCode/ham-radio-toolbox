@@ -68,7 +68,12 @@ test.describe("application update", () => {
   let server: ChildProcess | undefined;
 
   test.afterAll(async () => {
-    if (server?.pid) process.kill(-server.pid);
+    // Only the worker that ran the test cleans up: afterAll also runs in the
+    // workers of the projects where the test is skipped, and removing the
+    // output there would break a run in progress on desktop-chromium.
+    if (!server) return;
+    if (server.pid) process.kill(-server.pid);
+    server = undefined;
     await rm(`${ROOT}${OUT_DIR}`, { recursive: true, force: true });
   });
 

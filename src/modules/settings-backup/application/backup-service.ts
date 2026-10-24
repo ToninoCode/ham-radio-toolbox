@@ -12,6 +12,7 @@ import {
   type BackupGateway,
   type Clock,
   type ContentHasher,
+  type DataChangeNotifier,
   type IdGenerator,
   type ImportJobRepository,
   type StoredRecord,
@@ -31,6 +32,7 @@ import type {
   BackupContent,
   BackupError,
   BackupReadEvent,
+  BackupReadOptions,
   BackupService,
   InvalidStoredRecord,
   RestoreAnalysis,
@@ -68,6 +70,8 @@ export interface BackupServiceDeps {
   readonly hasher: ContentHasher;
   readonly appVersion: string;
   readonly limits?: Partial<BackupLimits>;
+  /** Tells the other tabs that a restore replaced the data. */
+  readonly notifier?: DataChangeNotifier;
 }
 
 /** Longest JSON text of a record that is not an attachment. */
@@ -107,6 +111,12 @@ export function createBackupService(deps: BackupServiceDeps): BackupService {
     maxAttachmentBytes:
       deps.limits?.maxAttachmentBytes ?? DEFAULT_MAX_ATTACHMENT_BYTES,
   };
+
+  /** Longest JSON text of one record of a table, for the reader. */
+  const recordCharLimit: BackupReadOptions["recordCharLimit"] = (table) =>
+    table === "attachments"
+      ? base64Length(limits.maxAttachmentBytes) + ATTACHMENT_RECORD_OVERHEAD
+      : MAX_RECORD_CHARS;
 
   function restoreJob(
     analysis: RestoreAnalysis,
@@ -202,6 +212,24 @@ export function createBackupService(deps: BackupServiceDeps): BackupService {
   }
 
   return {
+    async inspectBackup() {
+      const info = await gateway.inspect();
+      if (!info.ok) return info;
+      const { counts, attachmentBytes } = info.value;
+      const recordCount = TABLE_NAMES.reduce(
+        (sum, table) => (table === "attachments" ? sum : sum + counts[table]),
+        0,
+      );
+      return ok({
+        counts,
+        recordCount,
+        attachmentCount: counts.attachments,
+        attachmentBytes,
+        attachmentBase64Bytes: base64Length(attachmentBytes),
+        limitBytes: limits.maxBackupBytes,
+      });
+    },
+
     async createBackup({ includeAttachments, signal }) {
       if (isAborted(signal)) return err(ABORTED);
       const info = await gateway.inspect();
@@ -317,6 +345,54 @@ export function createBackupService(deps: BackupServiceDeps): BackupService {
         fileName: backupFileName(header.exportedAt),
         manifest,
       });
+    },
+
+    async verifyBackup(file, options = {}) {
+      const { signal } = options;
+      const unverified = (reason: string): Result<never, BackupError> =>
+        err({ code: "backup.export-unverified", reason });
+      let recordCount = 0;
+      let tableCount = 0;
+      let headerSeen = false;
+      const read = await codec.read(
+        file.blob,
+        (event): Result<void, BackupError> => {
+          if (isAborted(signal)) return err(ABORTED);
+          switch (event.type) {
+            case "header":
+              headerSeen = true;
+              return event.manifest.backupId === file.manifest.backupId
+                ? ok(undefined)
+                : unverified("backup-id");
+            case "table-start":
+              return ok(undefined);
+            case "record":
+              recordCount++;
+              return event.contentError
+                ? unverified(`${event.table}[${event.index}]`)
+                : ok(undefined);
+            case "table-end":
+              tableCount++;
+              return event.count === file.manifest.counts[event.table]
+                ? ok(undefined)
+                : unverified(`count:${event.table}`);
+          }
+        },
+        { ...(signal ? { signal } : {}), recordCharLimit },
+      );
+      if (!read.ok) {
+        // A file we just wrote that does not read back is a defect of the
+        // export, never a property of user data.
+        return read.error.code === "operation.aborted" ||
+          read.error.code === "backup.export-unverified"
+          ? read
+          : unverified(read.error.code);
+      }
+      if (!headerSeen) return unverified("header");
+      if (tableCount !== Object.keys(file.manifest.counts).length) {
+        return unverified("tables");
+      }
+      return ok({ recordCount, tableCount });
     },
 
     async analyzeBackup(file, options = {}) {
@@ -477,11 +553,7 @@ export function createBackupService(deps: BackupServiceDeps): BackupService {
 
       const read = await codec.read(file.content, onEvent, {
         ...(signal ? { signal } : {}),
-        recordCharLimit: (table) =>
-          table === "attachments"
-            ? base64Length(limits.maxAttachmentBytes) +
-              ATTACHMENT_RECORD_OVERHEAD
-            : MAX_RECORD_CHARS,
+        recordCharLimit,
       });
       if (!read.ok) return read;
       if (!manifest) return err({ code: "backup.not-a-backup" });
@@ -592,6 +664,8 @@ export function createBackupService(deps: BackupServiceDeps): BackupService {
           code: codeOf(result.error),
           message: describe(result.error),
         });
+      } else {
+        deps.notifier?.publish({ scope: "all" });
       }
       return result;
     },

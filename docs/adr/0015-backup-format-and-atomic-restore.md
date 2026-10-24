@@ -1,6 +1,6 @@
 # 0015 — Formato di backup v1, elaborazione progressiva e restore atomico
 
-- **Stato**: Proposto (da approvare con il Blocco C di M2)
+- **Stato**: Accettato (2026-10-24, approvazione del Blocco C di M2, con le precisazioni della revisione riportate in fondo)
 - **Data**: 2026-10-24
 - **Milestone**: M2
 
@@ -48,6 +48,29 @@ Fatti verificati:
 ### Proposta per backup oltre il limite (non attuata, da decidere in M13)
 
 Restore in un database di appoggio (`ham-radio-toolbox-restore-<id>`) scritto a lotti, verificato, poi attivato con lo scambio di un puntatore al database attivo; il database precedente si elimina dopo la verifica, quello di appoggio orfano all'avvio successivo. È atomico e con memoria limitata, ma cambia una convenzione approvata (nome fisso del database, apertura e ciclo di vita delle connessioni in `AppDatabase`), quindi richiede un ADR dedicato e test su tablet. Insieme si rivaluta il contenitore ZIP (allegati senza base64) di ADR-0009.
+
+## Precisazioni all'accettazione (revisione del Blocco C, 2026-10-24)
+
+1. **Ordine canonico del writer.** Il writer produce sempre lo stesso ordine: membri della radice `format`, `backupFormatVersion`, `schemaVersion`, `appVersion`, `backupId`, `exportedAt`, `includesAttachments`, `counts`, `tables`, `integrity`; tabelle nell'ordine di `TABLE_NAMES`; record per chiave primaria; chiavi di ogni record in ordine lessicografico.
+2. **Cosa richiede il lettore.** Il lettore impone solo l'ordine che gli serve per lavorare in streaming e rifiuta il resto con `backup.layout-invalid`:
+   - `format` è il primo membro (altrimenti `backup.not-a-backup`);
+   - tutti i membri dell'intestazione precedono `tables`, così il file si rifiuta prima di leggere un record;
+   - `integrity` segue `tables` ed è l'ultimo membro;
+   - nessun membro è ripetuto.
+
+   Non richiede invece l'ordine reciproco dei membri dell'intestazione dopo `format`, l'ordine delle tabelle dentro `tables` né quello dei record (le chiavi duplicate sono comunque rilevate: `backup.duplicate-id`). Il checksum copre il testo esatto di ogni array: riordinare i record di una tabella cambia il checksum e il file è rifiutato (`backup.checksum-mismatch`).
+
+3. **Determinismo.** La serializzazione dei record è deterministica: stessi dati → stesso testo di ogni tabella, quindi stesse impronte. `backupId` e `exportedAt` cambiano a ogni esportazione, e con loro il nome del file: due backup degli stessi dati hanno tabelle identiche byte per byte ma file diversi.
+4. **Integrità, non autenticità.** SHA-256 rileva corruzione e troncamento accidentali. Non è una firma: chi modifica il file può ricalcolare le impronte. Per questo ogni record è comunque validato con lo schema della sua entità e con le regole di riferimento (test `tests/integration/backup/backup-block-d.spec.ts`, file manomessi con impronte ricalcolate). L'interfaccia lo dice esplicitamente (Impostazioni, sezione Backup).
+5. **Staging rinviato a M13.** Il restore in un database di appoggio per file oltre il limite operativo non è implementato in M2 (Q-M2-10); resta la proposta descritta sopra.
+
+### Unità di misura e limiti (precisazione del Blocco D)
+
+- Il limite operativo è `DEFAULT_MAX_BACKUP_BYTES = 100 × 1024 × 1024` byte, cioè **100 MiB = 104 857 600 byte ≈ 104,9 MB** decimali. Nei documenti "100 MB" indica questo valore; l'interfaccia mostra le dimensioni in unità binarie (KiB, MiB, GiB).
+- Le misure della tabella con file oltre 100 MiB (fino a 420 MB) sono state ottenute **alzando il limite** nell'harness di test (`maxBackupBytes`), per misurare tempi e memoria: non sono una capacità supportata. Nell'app il limite resta 100 MiB.
+- Memoria: il restore tiene in memoria tutti i record validati fino al commit (transazione unica); con allegati, i loro contenuti sono `Blob` nel _blob storage_ del browser. Il picco dell'heap JS misurato su desktop va da +50 a +505 MB (tabella sopra).
+- **Android non verificato**: nessuna misura su tablet. Il limite di 100 MiB è verificato solo su Chromium desktop e va confermato con la checklist progressiva di ROADMAP § 7.2 (Q-M2-11); se non regge si abbassa via configurazione.
+- **Requisito residuo**: backup fino a 500 MB (DATABASE § 8) richiede lo staging e probabilmente il contenitore ZIP (M13, Q-M2-10).
 
 ## Alternative considerate
 

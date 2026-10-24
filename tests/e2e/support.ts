@@ -18,6 +18,17 @@ export const MODULE_PATHS: Readonly<Record<string, string>> = {
   "settings-backup": "/settings-backup",
 };
 
+/** Test id of the root element of each module's page. */
+export function pageTestIdOf(id: string): string {
+  if (id === "dashboard") return "dashboard";
+  // Available modules have their own view; the others show "In sviluppo".
+  return AVAILABLE_PAGES[id] ?? "under-development";
+}
+
+const AVAILABLE_PAGES: Readonly<Record<string, string>> = {
+  "settings-backup": "settings",
+};
+
 export const VIEWPORTS = {
   phone: { width: 390, height: 844 },
   phoneLandscape: { width: 844, height: 390 },

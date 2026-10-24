@@ -1,6 +1,12 @@
-import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
+import type { AppContainer } from "@/app/container";
+import {
+  APP_PREFERENCES,
+  usePreferencesStore,
+} from "@/modules/settings-backup";
+import { createStoreTestApp } from "../../../tests/support/app-services";
+import { expectOk } from "../../../tests/support/records";
 import { applyTheme, resolveTheme, THEME_COLORS } from "./theme";
 import { useThemeStore } from "./theme-store";
 
@@ -66,9 +72,11 @@ describe("applyTheme", () => {
 });
 
 describe("theme store", () => {
+  let container: AppContainer;
+
   beforeEach(() => {
     resetDocument();
-    setActivePinia(createPinia());
+    container = createStoreTestApp().container;
   });
 
   afterEach(() => {
@@ -105,6 +113,27 @@ describe("theme store", () => {
 
     store.setPreference("system");
     await nextTick();
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+  });
+
+  it("persists the preference in settings and reads it back (FR-DSH-06)", async () => {
+    stubMatchMedia(false);
+    const store = useThemeStore();
+    store.start();
+    store.setPreference("dark");
+    await vi.waitFor(async () =>
+      expect(
+        expectOk(await container.repositories.settings.read(APP_PREFERENCES)),
+      ).toEqual({ theme: "dark" }),
+    );
+
+    // A new session (new Pinia) on the same database starts from "dark".
+    resetDocument();
+    createStoreTestApp(container);
+    await usePreferencesStore().load();
+    const next = useThemeStore();
+    next.start();
+    expect(next.preference).toBe("dark");
     expect(document.documentElement.classList.contains("dark")).toBe(true);
   });
 

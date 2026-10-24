@@ -1,4 +1,4 @@
-export type ButtonVariant = "primary" | "secondary" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
 const BASE =
   "inline-flex min-h-touch items-center justify-center gap-2 rounded-lg px-4 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
@@ -8,6 +8,8 @@ const VARIANTS: Readonly<Record<ButtonVariant, string>> = {
   secondary:
     "border border-border-strong bg-surface text-fg hover:bg-surface-muted",
   ghost: "text-fg hover:bg-surface-muted",
+  // Destructive confirmations only (restore that replaces data, deletion).
+  danger: "bg-danger text-canvas hover:bg-danger/90",
 };
 
 /**

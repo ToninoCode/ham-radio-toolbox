@@ -84,6 +84,17 @@ describe("catalogKeySchema / sha256HexSchema", () => {
     expect(sha256HexSchema.safeParse(empty.toUpperCase()).success).toBe(false);
     expect(sha256HexSchema.safeParse(empty.slice(1)).success).toBe(false);
   });
+
+  it("reports the domain code, not zod.invalid_format (Q-M2-12)", () => {
+    const codes = (result: z.ZodSafeParseResult<unknown>) =>
+      result.error?.issues.map(issueCode);
+    expect(codes(catalogKeySchema.safeParse("App"))).toEqual([
+      "catalog-key.invalid",
+    ]);
+    expect(codes(sha256HexSchema.safeParse("xyz"))).toEqual(["sha256.invalid"]);
+    // A wrong type is still a structural issue.
+    expect(codes(catalogKeySchema.safeParse(42))).toEqual(["zod.invalid_type"]);
+  });
 });
 
 describe("frequencyHzSchema", () => {

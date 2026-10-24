@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { UtcDateTime } from "@/core/time";
 import {
+  patternSchema,
   sha256HexSchema,
   utcDateTimeSchema,
   uuidSchema,
@@ -43,9 +44,10 @@ export const BACKUP_HEADER_FIELDS = [
 export const DEFAULT_MAX_BACKUP_BYTES = 100 * 1024 * 1024;
 
 /** Table name as written in the file (`snake_case`, DATABASE.md § 1). */
-const tableNameSchema = z
-  .string()
-  .regex(/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/, { message: "backup.table-name" });
+const tableNameSchema = patternSchema(
+  /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/,
+  "backup.table-name",
+);
 
 const countSchema = z.number().int().nonnegative();
 

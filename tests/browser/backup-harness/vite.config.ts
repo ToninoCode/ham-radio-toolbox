@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
+import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vite";
 
 /*
@@ -19,6 +20,9 @@ if (!csp) throw new Error("No Content-Security-Policy in public/_headers");
 export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),
   publicDir: false,
+  // The container imports the modules' public API, whose manifests reference
+  // lazy .vue views (never loaded by the harness, but bundled).
+  plugins: [vue()],
   resolve: {
     alias: { "@": fileURLToPath(new URL("../../../src", import.meta.url)) },
   },

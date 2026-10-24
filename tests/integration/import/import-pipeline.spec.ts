@@ -88,7 +88,7 @@ describe("preview", () => {
       {
         location: "line 5",
         field: "key",
-        code: "zod.invalid_format",
+        code: "catalog-key.invalid",
         message: "",
       },
       {
@@ -267,7 +267,7 @@ describe("commit", () => {
       options: { format: "test-sources", conflicts: "skip" },
     });
     expect(outcome.job.errors.map((e) => e.code)).toEqual([
-      "zod.invalid_format",
+      "catalog-key.invalid",
       "zod.invalid_value",
     ]);
     expect(await test.db.data_sources.orderBy("key").primaryKeys()).toEqual([
